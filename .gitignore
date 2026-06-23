@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+*.so
+
+# Node
+node_modules/
+.next/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.production
+*.pem
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads
+backend/uploads/
+!backend/uploads/.gitkeep
+
+# Data (generated)
+backend/data/faiss_index/
+backend/data/qdrant/
+backend/data/cache/
+backend/data/datasets/
+backend/data/models/
+
+# Logs
+*.log
+/tmp/
+
+# PDF books (large, upload manually to Lightning AI)
+books/

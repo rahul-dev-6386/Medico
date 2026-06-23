@@ -1,0 +1,5 @@
+Source: https://www.ahajournals.org/doi/10.1161/CIR.0000000000000678
+Specialty: cardiovascular_disease
+---
+
+AHA/ACC Guideline on the Assessment of Cardiovascular Risk (2019): Use pooled cohort equations (PCE) for 10-year ASCVD risk estimation in adults 40-75 years without clinical ASCVD. Risk categories: low < 5%, borderline 5-7.4%, intermediate 7.5-19.9%, high >= 20%. Risk-enhancing factors: family history of premature ASCVD, metabolic syndrome, chronic kidney disease, chronic inflammatory conditions, history of preeclampsia or premature menopause, high-risk race/ethnicity, lipid/biomarker abnormalities. Coronary artery calcium (CAC) scoring for intermediate-risk patients: CAC = 0 can reclassify to low risk; CAC >= 100 or >= 75th percentile supports statin therapy. Lifestyle: Mediterranean diet, 150 min/week moderate exercise, BMI 18.5-24.9.

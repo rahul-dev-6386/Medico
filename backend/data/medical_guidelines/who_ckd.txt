@@ -1,0 +1,5 @@
+Source: https://www.who.int/publications/i/item/9789240000000
+Specialty: chronic_kidney_disease
+---
+
+Chronic kidney disease (CKD) is defined by kidney damage or GFR < 60 mL/min/1.73m² for > 3 months. Staging: Stage 1 GFR >= 90 with kidney damage, Stage 2 GFR 60-89, Stage 3a GFR 45-59, Stage 3b GFR 30-44, Stage 4 GFR 15-29, Stage 5 GFR < 15. Management includes: blood pressure control < 130/80 mmHg with ACE inhibitors or ARBs, glycemic control in diabetes, protein restriction (0.8 g/kg/day in non-dialysis), sodium restriction < 2g/day, anemia management (Hb target 10-11.5 g/dL), mineral bone disorder management, and preparation for renal replacement therapy when GFR < 20 mL/min/1.73m².

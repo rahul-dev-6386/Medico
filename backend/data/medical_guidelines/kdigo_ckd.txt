@@ -1,0 +1,5 @@
+Source: https://kdigo.org/guidelines/ckd-evaluation-and-management/
+Specialty: chronic_kidney_disease
+---
+
+KDIGO 2024 CKD Guideline: Diagnose and classify CKD based on cause, GFR category (G1-G5), and albuminuria category (A1-A3). Risk of progression: use KDIGO heat map. Management: blood pressure target < 120/80 mmHg (standard office BP). ACE inhibitors or ARBs for hypertension or albuminuria. SGLT2 inhibitors recommended for patients with CKD and eGFR >= 20 mL/min/1.73m² regardless of diabetes status. Non-steroidal MRAs for those with T2D and albuminuria. Glycemic target HbA1c < 7.0% in diabetes with CKD. Dietary: sodium < 2g/day, protein 0.8 g/kg/day for non-dialysis, potassium management based on serum levels. Prepare for RRT when eGFR < 15-20.

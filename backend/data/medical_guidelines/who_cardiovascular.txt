@@ -1,0 +1,5 @@
+Source: https://www.who.int/publications/i/item/9789240000000
+Specialty: cardiovascular_disease
+---
+
+WHO cardiovascular disease prevention guidelines emphasize total cardiovascular risk assessment using scoring systems like WHO/ISH risk prediction charts. Key risk factors: age, sex, smoking, blood pressure, total cholesterol, diabetes. Prevention strategies include: smoking cessation, healthy diet (low saturated fat, high fiber), physical activity (150 min/week moderate or 75 min/week vigorous), weight management (BMI 18.5-24.9), blood pressure control < 140/90 mmHg, lipid management (LDL < 100 mg/dL high risk, < 70 mg/dL very high risk). Aspirin for secondary prevention. Statins for primary prevention when 10-year CVD risk > 20%.

@@ -1,0 +1,5 @@
+Source: https://www.cdc.gov/vaccines/schedules/hcp/imz/adult.html
+Specialty: immunization
+---
+
+CDC Adult Immunization Schedule: Annual influenza vaccine for all adults. Tdap once then Td/Tdap booster every 10 years. HPV vaccine through age 26 (shared decision-making 27-45). Zoster vaccine (Shingrix) for adults 50+ years (2 doses). Pneumococcal vaccines: PCV15 or PCV20 for adults 65+ and younger adults with risk conditions. COVID-19 vaccines: updated vaccine annually for all adults. RSV vaccine for adults 60+ years. Hepatitis B vaccine for adults 19-59, and 60+ with risk factors. MMR for adults born after 1957 without evidence of immunity.

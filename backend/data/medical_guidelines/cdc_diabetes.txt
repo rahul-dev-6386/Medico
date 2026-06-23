@@ -1,0 +1,5 @@
+Source: https://www.cdc.gov/diabetes/prevention/index.html
+Specialty: diabetes
+---
+
+CDC Diabetes Prevention Program (DPP) guidelines: lifestyle intervention program for prediabetes (HbA1c 5.7-6.4%, fasting glucose 100-125 mg/dL, or 2-hour glucose 140-199 mg/dL). Goals: 5-7% weight loss, 150 minutes/week physical activity, reduced calorie and fat intake. Screening recommendations: adults 35+ years with overweight/obesity should be screened annually. Earlier screening for those with risk factors: family history, gestational diabetes, polycystic ovary syndrome, high-risk race/ethnicity. Diagnostic criteria: HbA1c >= 6.5%, fasting glucose >= 126 mg/dL, 2-hour glucose >= 200 mg/dL during OGTT, or random glucose >= 200 mg/dL with symptoms.

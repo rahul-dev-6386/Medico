@@ -1,0 +1,5 @@
+Source: https://www.who.int/publications/i/item/9789241565257
+Specialty: diabetes
+---
+
+The World Health Organization (WHO) provides global guidelines for diabetes prevention and management. Key recommendations include: maintaining healthy body weight (BMI 18.5-24.9), regular physical activity (at least 150 minutes of moderate-intensity aerobic activity per week), healthy diet rich in fruits, vegetables, and whole grains with limited sugar and saturated fats. For diagnosed diabetes, glycemic control targets include HbA1c < 7.0% (53 mmol/mol) for most adults, fasting plasma glucose 80-130 mg/dL (4.4-7.2 mmol/L), and postprandial glucose < 180 mg/dL (10.0 mmol/L). Annual screening for complications including retinopathy, nephropathy, neuropathy, and cardiovascular disease is recommended. Blood pressure target < 140/90 mmHg, LDL cholesterol target < 100 mg/dL (2.6 mmol/L).

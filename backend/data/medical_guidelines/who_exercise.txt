@@ -1,0 +1,5 @@
+Source: https://www.who.int/publications/i/item/9789240015128
+Specialty: exercise_guidelines
+---
+
+WHO Physical Activity Guidelines 2020: Adults (18-64 years): at least 150-300 minutes moderate-intensity aerobic physical activity, or 75-150 minutes vigorous-intensity, or equivalent combination per week. Muscle-strengthening activities involving major muscle groups on 2+ days/week. Older adults (65+): same as adults plus balance training 3+ days/week. Children and adolescents (5-17): at least 60 minutes/day moderate-to-vigorous intensity, with vigorous activities 3 days/week. All adults should limit sedentary time. Some activity is better than none. Benefits include reduced all-cause mortality, CVD, hypertension, diabetes, various cancers, depression, and improved cognitive function.

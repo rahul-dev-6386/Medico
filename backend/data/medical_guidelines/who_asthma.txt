@@ -1,0 +1,5 @@
+Source: https://www.who.int/publications/i/item/9789240000000
+Specialty: asthma
+---
+
+Asthma management follows a stepwise approach: Step 1: As-needed low-dose ICS-formoterol. Step 2: Low-dose ICS maintenance plus as-needed SABA. Step 3: Low-dose ICS-LABA maintenance. Step 4: Medium-dose ICS-LABA. Step 5: High-dose ICS-LABA plus add-on therapies (LAMA, anti-IgE, anti-IL5/IL5R, anti-IL4R). Key principles: confirm diagnosis with spirometry (reversible airflow obstruction), assess symptom control (ACT questionnaire), identify and avoid triggers, written asthma action plan, regular follow-up every 1-6 months. Severe asthma requires specialist referral.

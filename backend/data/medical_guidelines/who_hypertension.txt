@@ -1,0 +1,5 @@
+Source: https://www.who.int/publications/i/item/9789240033986
+Specialty: hypertension
+---
+
+WHO guidelines for hypertension management recommend accurate blood pressure measurement using validated devices. Classification: Normal < 120/80 mmHg, Elevated 120-129/<80 mmHg, Stage 1 HTN 130-139/80-89 mmHg, Stage 2 HTN >= 140/90 mmHg. Treatment targets: general population < 140/90 mmHg, diabetes/CKD patients < 130/80 mmHg. Lifestyle modifications include sodium restriction < 2g/day, DASH diet, regular exercise, weight management, alcohol moderation, and smoking cessation. First-line medications include thiazide diuretics, ACE inhibitors, ARBs, and calcium channel blockers. Combination therapy is often required.

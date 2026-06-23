@@ -1,0 +1,5 @@
+Source: https://diabetesjournals.org/care/issue/47/Supplement_1
+Specialty: diabetes
+---
+
+American Diabetes Association Standards of Care 2024: Classification includes type 1, type 2, gestational diabetes, and specific types due to other causes. Diagnosis: HbA1c >= 6.5%, FPG >= 126 mg/dL, OGTT 2-hour PG >= 200 mg/dL, or random PG >= 200 mg/dL with symptoms. Glycemic targets: HbA1c < 7.0% for most non-pregnant adults (more stringent < 6.5% if achievable without significant hypoglycemia, less stringent < 8.0% for those with comorbidities). Pharmacotherapy: metformin is first-line for type 2 diabetes. GLP-1 receptor agonists or SGLT2 inhibitors recommended for those with ASCVD, CKD, or heart failure regardless of HbA1c. Annual comprehensive medical evaluation, lipid profile, nephropathy screening (urine albumin-to-creatinine ratio, eGFR), dilated eye exam, foot exam, and dental exam.

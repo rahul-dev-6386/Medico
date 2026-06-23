@@ -1,0 +1,5 @@
+Source: https://www.cdc.gov/bloodpressure/index.htm
+Specialty: hypertension
+---
+
+CDC Million Hearts initiative: control blood pressure through team-based care, use of evidence-based treatment protocols, self-measured blood pressure monitoring, and health IT interventions. Regular screening: adults 18+ years with normal BP (< 120/80) screened every 2 years, those with elevated BP (120-129/<80) screened annually. Therapeutic lifestyle changes are first-line. Medication adherence is critical for BP control. Use single-pill combination therapy to improve adherence.

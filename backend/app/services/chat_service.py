@@ -1,0 +1,187 @@
+from sqlalchemy.orm import Session
+from typing import Optional
+import json
+
+from app.models.chat import ChatSession, ChatMessage
+from app.models.memory import MemoryEntry
+from app.models.profile import PatientProfile
+from app.models.metrics import DailyMetric
+from app.models.medication import Medication
+from app.services.ai_provider_service import ai_provider
+from app.services.safety_service import SafetyService
+from app.services.query_router import QueryRouter
+
+
+class ChatService:
+    def __init__(self, db: Session):
+        self.db = db
+        self.safety = SafetyService()
+
+    def create_session(self, user_id: int, title: str = "New Chat") -> ChatSession:
+        session = ChatSession(user_id=user_id, title=title)
+        self.db.add(session)
+        self.db.commit()
+        self.db.refresh(session)
+        return session
+
+    def get_user_sessions(self, user_id: int) -> list[ChatSession]:
+        return (
+            self.db.query(ChatSession)
+            .filter(ChatSession.user_id == user_id)
+            .order_by(ChatSession.updated_at.desc())
+            .all()
+        )
+
+    def get_session_messages(self, session_id: int) -> list[ChatMessage]:
+        return (
+            self.db.query(ChatMessage)
+            .filter(ChatMessage.session_id == session_id)
+            .order_by(ChatMessage.created_at)
+            .all()
+        )
+
+    def send_message(self, session_id: int, user_id: int, content: str):
+        safety_result = self.safety.check_message(content)
+        if safety_result["emergency"]:
+            user_msg = ChatMessage(session_id=session_id, role="user", content=content)
+            self.db.add(user_msg)
+            emergency_msg = ChatMessage(
+                session_id=session_id,
+                role="assistant",
+                content=safety_result["message"],
+            )
+            self.db.add(emergency_msg)
+            self.db.commit()
+            return {"emergency": True, "message": safety_result["message"]}
+
+        user_msg = ChatMessage(session_id=session_id, role="user", content=content)
+        self.db.add(user_msg)
+
+        router = QueryRouter(self.db)
+        route_result = router.route(content, user_id)
+
+        if route_result["intent"] == "emergency":
+            self.db.commit()
+            return {"emergency": True, "message": route_result["response"]}
+
+        patient_summary = self._build_patient_summary(user_id)
+        history = self.get_session_messages(session_id)
+        conversation_context = self._build_conversation_context(history)
+
+        system_prompt = (
+            "You are an AI health assistant powered by medical intelligence. "
+            "You provide evidence-based health information from medical guidelines, research, and patient data. "
+            "You are NOT a doctor and must NEVER claim to provide definitive diagnoses or prescriptions. "
+            "Always include a disclaimer where appropriate. "
+            "Use the patient's health profile to personalize your response.\n\n"
+            f"## Patient Profile\n{patient_summary}"
+        )
+
+        if route_result["citations"]:
+            citations_text = "\n\n**Retrieved Sources:**\n"
+            for c in route_result["citations"]:
+                url = f" ({c['url']})" if c.get("url") else ""
+                citations_text += f"- {c['title']} — *{c['source']}*{url}\n"
+            system_prompt += f"\n\n## Retrieved Medical Knowledge\n{route_result['response']}{citations_text}"
+
+        ai_response = ai_provider.generate_chat_response(
+            message=content,
+            context=conversation_context,
+            system_instruction=system_prompt,
+        )
+
+        if route_result["citations"]:
+            ai_response += "\n\n---\n**Sources:**\n"
+            seen = set()
+            for c in route_result["citations"]:
+                key = (c["source"], c["title"])
+                if key not in seen:
+                    seen.add(key)
+                    url = f" ({c['url']})" if c.get("url") else ""
+                    ai_response += f"- {c['title']} — *{c['source']}*{url}\n"
+
+        assistant_msg = ChatMessage(
+            session_id=session_id, role="assistant", content=ai_response
+        )
+        self.db.add(assistant_msg)
+
+        session = (
+            self.db.query(ChatSession)
+            .filter(ChatSession.id == session_id)
+            .first()
+        )
+        if session:
+            from sqlalchemy.sql import func
+            session.updated_at = func.now()
+
+        self.db.commit()
+
+        return {"emergency": False, "message": ai_response}
+
+    def _build_patient_summary(self, user_id: int) -> str:
+        profile = (
+            self.db.query(PatientProfile)
+            .filter(PatientProfile.user_id == user_id)
+            .first()
+        )
+        memory_entries = (
+            self.db.query(MemoryEntry)
+            .filter(MemoryEntry.user_id == user_id)
+            .all()
+        )
+        recent_metrics = (
+            self.db.query(DailyMetric)
+            .filter(DailyMetric.user_id == user_id)
+            .order_by(DailyMetric.date.desc())
+            .limit(7)
+            .all()
+        )
+        medications = (
+            self.db.query(Medication)
+            .filter(Medication.user_id == user_id, Medication.active == True)
+            .all()
+        )
+
+        summary_parts = []
+
+        if profile:
+            if profile.chronic_diseases:
+                summary_parts.append(
+                    f"Chronic Conditions: {', '.join(profile.chronic_diseases)}"
+                )
+            if profile.allergies:
+                summary_parts.append(f"Allergies: {', '.join(profile.allergies)}")
+            if profile.date_of_birth:
+                from datetime import date
+                today = date.today()
+                age = today.year - profile.date_of_birth.year
+                summary_parts.append(f"Age: {age}")
+
+        if medications:
+            med_list = [
+                f"{m.name} ({m.dosage}, {m.frequency})" for m in medications
+            ]
+            summary_parts.append(f"Current Medications: {'; '.join(med_list)}")
+
+        if recent_metrics:
+            avg_sleep = sum(
+                (m.sleep_hours or 0) for m in recent_metrics if m.sleep_hours
+            ) / max(
+                sum(1 for m in recent_metrics if m.sleep_hours), 1
+            )
+            avg_water = sum(
+                (m.water_ml or 0) for m in recent_metrics if m.water_ml
+            ) / max(sum(1 for m in recent_metrics if m.water_ml), 1)
+            summary_parts.append(f"Average Sleep: {avg_sleep:.1f} hours/day")
+            summary_parts.append(f"Average Water Intake: {avg_water:.0f} ml/day")
+
+        for entry in memory_entries:
+            summary_parts.append(f"{entry.key}: {entry.value}")
+
+        return "\n".join(summary_parts) if summary_parts else "No patient data available."
+
+    def _build_conversation_context(self, messages: list[ChatMessage]) -> str:
+        context = "## Conversation History\n"
+        for msg in messages[-10:]:
+            context += f"{msg.role.capitalize()}: {msg.content}\n"
+        return context

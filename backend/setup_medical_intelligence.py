@@ -74,7 +74,6 @@ def main():
         "data/datasets",
         "data/models",
         "data/cache",
-        "data/faiss_index",
     ]
     for d in dirs:
         os.makedirs(d, exist_ok=True)
@@ -134,15 +133,15 @@ def main():
     # Step 7: Initialize database tables and populate knowledge
     log_step(7, total_steps, "Initializing database and building vector indexes")
     try:
-        from app.database import engine, Base
+        from app.core.database import engine, Base
         import app.models
         log_done("Database tables ready")
 
-        from app.database import SessionLocal
-        from app.services.embedding_service import embedding_service
-        from app.services.vector_store import vector_store
+        from app.core.database import SessionLocal
+        from app.infrastructure.embedding_service import embedding_service
+        from app.infrastructure.vector_store import vector_store
         from app.services.medical_knowledge_service import MedicalKnowledgeService
-        from app.services.pubmed_service import PubMedService
+        from app.infrastructure.pubmed_service import PubMedService
         from app.services.drug_service import DrugService
 
         vector_store.initialize()

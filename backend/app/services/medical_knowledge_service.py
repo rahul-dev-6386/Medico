@@ -3,10 +3,10 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.core.config import settings
 from app.models.medical_knowledge import MedicalGuideline
-from app.services.embedding_service import embedding_service
-from app.services.vector_store import vector_store
+from app.infrastructure.embedding_service import embedding_service
+from app.infrastructure.vector_store import vector_store
 
 
 KNOWLEDGE_TOPICS = [

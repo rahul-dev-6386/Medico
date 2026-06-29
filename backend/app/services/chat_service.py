@@ -7,7 +7,8 @@ from app.models.memory import MemoryEntry
 from app.models.profile import PatientProfile
 from app.models.metrics import DailyMetric
 from app.models.medication import Medication
-from app.services.ai_provider_service import ai_provider
+from app.models.report import MedicalReport
+from app.infrastructure.ai_provider_service import ai_provider
 from app.services.safety_service import SafetyService
 from app.services.query_router import QueryRouter
 
@@ -141,6 +142,13 @@ class ChatService:
             .filter(Medication.user_id == user_id, Medication.active == True)
             .all()
         )
+        recent_reports = (
+            self.db.query(MedicalReport)
+            .filter(MedicalReport.user_id == user_id)
+            .order_by(MedicalReport.uploaded_at.desc())
+            .limit(5)
+            .all()
+        )
 
         summary_parts = []
 
@@ -174,6 +182,19 @@ class ChatService:
             ) / max(sum(1 for m in recent_metrics if m.water_ml), 1)
             summary_parts.append(f"Average Sleep: {avg_sleep:.1f} hours/day")
             summary_parts.append(f"Average Water Intake: {avg_water:.0f} ml/day")
+
+        if recent_reports:
+            report_summary = []
+            for r in recent_reports:
+                parts = [f"{r.report_type.upper()} report ({r.uploaded_at.strftime('%b %d, %Y')})"]
+                if r.ai_summary:
+                    parts.append(f"summary: {r.ai_summary[:200]}")
+                if r.health_score is not None:
+                    parts.append(f"health score: {r.health_score}/10")
+                if r.risk_level:
+                    parts.append(f"risk: {r.risk_level}")
+                report_summary.append("; ".join(parts))
+            summary_parts.append(f"Recent Medical Reports:\n" + "\n".join(f"  - {s}" for s in report_summary))
 
         for entry in memory_entries:
             summary_parts.append(f"{entry.key}: {entry.value}")

@@ -35,8 +35,6 @@ export default function TimelinePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!isAuthenticated) { router.push("/login"); return }
-
     Promise.all([
       apiFetch("/metrics?days=30").catch(() => []),
       apiFetch("/medications?active_only=false").catch(() => []),

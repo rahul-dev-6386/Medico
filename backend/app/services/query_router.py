@@ -1,19 +1,26 @@
 import re
+import logging
 from enum import Enum
 from typing import Optional
 
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.models.profile import PatientProfile
 from app.models.metrics import DailyMetric
 from app.models.medication import Medication
 from app.models.report import MedicalReport
 from app.services.medical_knowledge_service import MedicalKnowledgeService
-from app.services.pubmed_service import PubMedService
+from app.infrastructure.pubmed_service import PubMedService
 from app.services.drug_service import DrugService
 from app.services.report_intelligence_service import ReportIntelligenceService
 from app.services.citation_engine import CitationEngine
-from app.services.ai_provider_service import ai_provider
+from app.infrastructure.ai_provider_service import ai_provider
+from app.infrastructure.vector_store import vector_store
+from app.infrastructure.embedding_service import embedding_service
+from app.models.report_chunk import ReportChunk
+from app.domain.medical_library import retriever as library_retriever
 
 
 class IntentType(str, Enum):
@@ -124,7 +131,7 @@ class QueryRouter:
         if intent == IntentType.MULTI_SOURCE:
             return self._handle_multi_source(query, user_id, citations)
 
-        return self._handle_general_medical(query, citations)
+        return self._handle_general_medical(query, user_id, citations)
 
     def _handle_patient_history(self, user_id: int, citations: CitationEngine) -> dict:
         profile = (
@@ -202,6 +209,34 @@ class QueryRouter:
 
         response_parts = [f"## Report Analysis: {latest_report.title or latest_report.original_filename}\n"]
         response_parts.append(f"**{len(labs)}** lab values extracted.")
+
+        # Fetch report chunks for richer context
+        try:
+            query_emb = embedding_service.embed(query)
+            report_chunk_results = vector_store.search(
+                query_emb,
+                top_k=3,
+                payload_filter={
+                    "type": "report",
+                    "report_id": latest_report.id,
+                    "user_id": user_id,
+                },
+            )
+            if report_chunk_results:
+                response_parts.append(f"\n**Relevant Report Excerpts:**")
+                for rc in report_chunk_results:
+                    chunk = (
+                        self.db.query(ReportChunk)
+                        .filter(
+                            ReportChunk.report_id == latest_report.id,
+                            ReportChunk.chunk_index == rc["payload"]["chunk_index"],
+                        )
+                        .first()
+                    )
+                    if chunk and chunk.content.strip():
+                        response_parts.append(f"> {chunk.content[:300]}...")
+        except Exception as e:
+            logger.warning(f"Could not search report chunks: {e}")
 
         abnormal = [l for l in labs if l.get("is_abnormal")]
         if abnormal:
@@ -311,7 +346,7 @@ class QueryRouter:
             "citations": citations.to_dict_list(),
         }
 
-    def _handle_general_medical(self, query: str, citations: CitationEngine) -> dict:
+    def _handle_general_medical(self, query: str, user_id: int, citations: CitationEngine) -> dict:
         knowledge_results = self.knowledge_service.search(query, top_k=5)
         for kr in knowledge_results:
             citations.add_guideline(kr.get("specialty", "medical"), kr["title"], kr.get("url"))
@@ -320,16 +355,65 @@ class QueryRouter:
         for pr in pubmed_results:
             citations.add_pubmed(pr["title"], pr["pmid"], pr.get("journal"))
 
+        library_results = library_retriever.search(query, top_k=8)
+        for lr in library_results:
+            citations.add_guideline(
+                lr.get("collection", "medical_library"),
+                f"{lr.get('source_book', '')} / {lr.get('chapter', '')}",
+                None,
+            )
+
         context_parts = []
+        used_books = set()
+
         if knowledge_results:
-            context_parts.append("## Medical Guidelines\n")
             for kr in knowledge_results[:3]:
-                context_parts.append(kr["content"][:500] + "...\n")
+                text = kr.get("content", "").strip()
+                if text:
+                    context_parts.append(text[:1000])
 
         if pubmed_results:
-            context_parts.append("## PubMed Research\n")
             for pr in pubmed_results[:2]:
-                context_parts.append(f"**{pr['title']}**\n{pr.get('content', '')[:300]}...\n")
+                text = pr.get("content", "").strip()
+                if text:
+                    context_parts.append(text[:1000])
+
+        if library_results:
+            for lr in library_results:
+                text = lr.get("text", "").strip()
+                book = lr.get("source_book", "")
+                if book:
+                    used_books.add(book)
+                if text:
+                    context_parts.append(text[:1000])
+
+        report_texts = []
+        try:
+            query_emb = embedding_service.embed(query)
+            report_results = vector_store.search(
+                query_emb,
+                top_k=5,
+                payload_filter={"type": "report", "user_id": user_id},
+            )
+            for rr in report_results:
+                payload = rr["payload"]
+                chunk = (
+                    self.db.query(ReportChunk)
+                    .filter(
+                        ReportChunk.report_id == payload["report_id"],
+                        ReportChunk.chunk_index == payload["chunk_index"],
+                    )
+                    .first()
+                )
+                if chunk and chunk.content.strip():
+                    report_texts.append(chunk.content)
+                    citations.add_report_finding(
+                        f"Report #{payload['report_id']}", None
+                    )
+            if report_texts:
+                context_parts.extend(rt[:1000] for rt in report_texts[:3])
+        except Exception as e:
+            logger.warning(f"Could not search user reports: {e}")
 
         if not context_parts:
             return {
@@ -338,24 +422,58 @@ class QueryRouter:
                 "citations": [],
             }
 
-        context = "\n".join(context_parts)
-        response = ai_provider.generate_response(
-            prompt=(
-                f"Answer the following medical question based on the provided context. "
-                f"Always cite sources. If the context is insufficient, say so clearly.\n\n"
-                f"Context:\n{context}\n\n"
-                f"Question: {query}\n\n"
-                f"Answer:"
-            ),
-            system_instruction=(
-                "You are a medical knowledge assistant providing evidence-based information. "
-                "You must rely on the provided context. Never claim to be a doctor. "
-                "Always include appropriate medical disclaimers."
-            ),
+        # Deduplicate context
+        seen = set()
+        deduped = []
+        for text in context_parts:
+            fp = text.lower().strip()[:150]
+            if fp not in seen:
+                seen.add(fp)
+                deduped.append(text)
+        context = "\n\n".join(deduped)
+
+        system_prompt = (
+            "You are Medico AI. You are an evidence-based medical assistant.\n\n"
+            "You have access to trusted medical knowledge including Harrison's, Merck Manual, "
+            "Oxford Handbook, Davidson, Goodman & Gilman, Current Medical Diagnosis & Treatment, "
+            "and other medical references.\n\n"
+            "Use these references only to verify your answers.\n"
+            "Never mention the retrieval process.\n"
+            "Never mention textbooks unless citing them briefly at the end.\n"
+            "Never mention missing definitions. Interpret common patient language naturally.\n\n"
+            "Always answer like an experienced physician. Never answer like a textbook.\n"
+            "Never dump retrieved passages. Never quote multiple books separately.\n"
+            "Summarize everything. If multiple sources agree, merge into one concise explanation.\n\n"
+            "For symptom questions, structure your response as:\n"
+            "- Brief summary\n"
+            "- Most likely causes\n"
+            "- Less common but serious causes\n"
+            "- Home care advice (when appropriate)\n"
+            "- Red flag symptoms requiring urgent medical attention\n"
+            "- Follow-up questions to narrow the diagnosis\n\n"
+            "If the question is vague, ask targeted follow-up questions instead of listing dozens of possibilities."
         )
+
+        user_prompt = (
+            f"Answer the user's question clearly and conversationally.\n\n"
+            f"User: {query}\n\n"
+            f"Answer:"
+        )
+
+        response = ai_provider.generate_response(
+            prompt=user_prompt,
+            system_instruction=system_prompt,
+            temperature=0.3,
+        )
+
+        # Append references
+        if used_books:
+            refs = "\n\nReferences\n" + "\n".join(f"\u2022 {b}" for b in sorted(used_books))
+            response += refs
+
         return {
             "intent": "general_medical",
-            "response": response + citations.format_all(),
+            "response": response,
             "citations": citations.to_dict_list(),
         }
 
@@ -372,7 +490,7 @@ class QueryRouter:
                 parts.append("")
 
         if not parts:
-            return self._handle_general_medical(query, citations)
+            return self._handle_general_medical(query, user_id, citations)
 
         return {
             "intent": "multi_source",

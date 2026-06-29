@@ -1,20 +1,32 @@
+import logging
 import os
 from typing import Optional, List
-from langchain_community.vectorstores import FAISS
-from langchain_community.document_loaders import TextLoader, PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.chains import RetrievalQA
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain.schema import Document
-from langchain.prompts import PromptTemplate
 
-from app.config import settings
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+# LangChain imports — may fail due to version conflicts; service degrades gracefully
+try:
+    from langchain_community.vectorstores import FAISS
+    from langchain_community.document_loaders import TextLoader, PyPDFLoader
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain.chains import RetrievalQA
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+    from langchain.schema import Document
+    from langchain.prompts import PromptTemplate
+    _langchain_ok = True
+except Exception:
+    _langchain_ok = False
 
 os.environ["GOOGLE_API_KEY"] = settings.GEMINI_API_KEY or ""
 
 
 class RAGService:
     def __init__(self, index_path: str = "./knowledge_index"):
+        if not _langchain_ok:
+            self.initialized = False
+            return
         self.index_path = index_path
         self.embeddings = GoogleGenerativeAIEmbeddings(
             model="models/gemini-embedding-001",

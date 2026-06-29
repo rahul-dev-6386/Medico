@@ -44,7 +44,6 @@ export default function MetricsPage() {
   })
 
   useEffect(() => {
-    if (!isAuthenticated) { router.push("/login"); return }
     Promise.all([
       apiFetch("/metrics/stats").catch(() => null),
       apiFetch("/metrics?days=7").catch(() => []),

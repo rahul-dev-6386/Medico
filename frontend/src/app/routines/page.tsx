@@ -28,8 +28,6 @@ export default function RoutinesPage() {
     finally { setLoadingDaily(false) }
   }
 
-  if (!isAuthenticated) { router.push("/login"); return null }
-
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">

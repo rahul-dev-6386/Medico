@@ -1,7 +1,7 @@
 import json
 from typing import Optional
 
-from app.services.ai_provider_service import ai_provider
+from app.infrastructure.ai_provider_service import ai_provider
 
 
 DOCUMENT_TYPES = [

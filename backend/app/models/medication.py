@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, Date, Boolean, ForeignKey, JSON
 from sqlalchemy.sql import func
 
-from app.database import Base
+from app.core.database import Base
 
 
 class Medication(Base):

@@ -4,7 +4,7 @@ from typing import Optional
 import json
 import time
 
-from app.config import settings
+from app.core.config import settings
 
 genai.configure(api_key=settings.GEMINI_API_KEY)
 

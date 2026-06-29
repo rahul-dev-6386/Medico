@@ -3,9 +3,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.config import settings
-from app.database import SessionLocal
-from app.services.pubmed_service import PubMedService
+from app.core.config import settings
+from app.core.database import SessionLocal
+from app.infrastructure.pubmed_service import PubMedService
 
 
 PUBMED_QUERIES = [

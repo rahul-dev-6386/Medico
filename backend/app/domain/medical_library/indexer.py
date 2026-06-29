@@ -1,0 +1,120 @@
+import os
+import json
+import logging
+from typing import Optional
+
+from qdrant_client import QdrantClient
+from qdrant_client.http import models as qm
+
+logger = logging.getLogger("medical_library")
+
+QDRANT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "data", "library_qdrant")
+
+COLLECTIONS = ["diseases", "laboratory", "pharmacology", "clinical_practice"]
+EMBEDDING_DIM = 1024
+
+_client_instance: Optional[QdrantClient] = None
+
+
+def get_client() -> QdrantClient:
+    global _client_instance
+    if _client_instance is None:
+        os.makedirs(QDRANT_PATH, exist_ok=True)
+        _client_instance = QdrantClient(path=QDRANT_PATH)
+    return _client_instance
+
+
+def reset_client():
+    global _client_instance
+    if _client_instance is not None:
+        try:
+            _client_instance.close()
+        except Exception:
+            pass
+        _client_instance = None
+
+
+def init_collections(client: Optional[QdrantClient] = None):
+    if client is None:
+        client = get_client()
+    for name in COLLECTIONS:
+        existing = client.get_collections().collections
+        if name not in [c.name for c in existing]:
+            client.create_collection(
+                collection_name=name,
+                vectors_config=qm.VectorParams(
+                    size=EMBEDDING_DIM,
+                    distance=qm.Distance.COSINE,
+                ),
+                optimizers_config=qm.OptimizersConfigDiff(
+                    default_segment_number=2,
+                ),
+                hnsw_config=qm.HnswConfigDiff(
+                    m=32,
+                    ef_construct=200,
+                ),
+            )
+            logger.info(f"Created collection: {name}")
+        else:
+            info = client.get_collection(collection_name=name)
+            logger.info(f"Collection exists: {name} ({info.points_count} points)")
+
+
+def upload_batch(client: QdrantClient, collection: str, chunks: list[dict], vectors: list[list[float]], global_start_index: int = 0):
+    """
+    Upload a batch of chunks to Qdrant.
+
+    Args:
+        client: QdrantClient instance
+        collection: target collection name
+        chunks: list of chunk dicts with metadata
+        vectors: list of embedding vectors (same length as chunks)
+        global_start_index: absolute index of first chunk in this batch (0-based across entire book)
+    """
+    if len(chunks) != len(vectors):
+        raise ValueError(f"Chunks/vectors mismatch: {len(chunks)} chunks vs {len(vectors)} vectors")
+
+    points = []
+    for offset, (chunk, vector) in enumerate(zip(chunks, vectors)):
+        global_i = global_start_index + offset
+        book_name = chunk.get("book", "")
+        payload = {
+            "source_book": book_name,
+            "chapter": chunk.get("chapter", ""),
+            "section": chunk.get("section", ""),
+            "collection": collection,
+            "page_number": str(chunk.get("page_number", "")),
+            "medical_topic": "",
+            "text": chunk.get("text", "")[:5000],
+        }
+        # Use a globally unique deterministic ID
+        point_id = hash(f"lib:{collection}:{book_name}:{global_i}") % (2**63 - 1)
+        points.append(qm.PointStruct(
+            id=point_id,
+            vector=vector,
+            payload=payload,
+        ))
+    response = client.upsert(collection_name=collection, points=points, wait=True)
+    if response and hasattr(response, 'status') and response.status != 'ok':
+        logger.error(f"Upload failed for batch starting at {global_start_index}: {response}")
+    logger.info(f"Uploaded {len(points)} points to {collection} (batch start={global_start_index})")
+    return response
+
+
+def collection_count(client: Optional[QdrantClient] = None, name: str = "") -> int:
+    if client is None:
+        client = get_client()
+    try:
+        info = client.get_collection(collection_name=name)
+        return info.points_count
+    except Exception:
+        return 0
+
+
+def get_stats(client: Optional[QdrantClient] = None) -> dict:
+    if client is None:
+        client = get_client()
+    stats = {}
+    for name in COLLECTIONS:
+        stats[name] = collection_count(client, name)
+    return stats

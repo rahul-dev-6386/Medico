@@ -6,10 +6,10 @@ import httpx
 from sqlalchemy.orm import Session
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from app.config import settings
+from app.core.config import settings
 from app.models.drug_database import DrugEntry
-from app.services.embedding_service import embedding_service
-from app.services.vector_store import vector_store
+from app.infrastructure.embedding_service import embedding_service
+from app.infrastructure.vector_store import vector_store
 
 
 OPENFDA_BASE = "https://api.fda.gov/drug"

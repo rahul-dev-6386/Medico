@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, Enum as SAEnu
 from sqlalchemy.sql import func
 import enum
 
-from app.database import Base
+from app.core.database import Base
 
 
 class UserRole(str, enum.Enum):

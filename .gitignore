@@ -37,9 +37,14 @@ backend/uploads/
 # Data (generated)
 backend/data/faiss_index/
 backend/data/qdrant/
+backend/data/library_qdrant/
 backend/data/cache/
 backend/data/datasets/
 backend/data/models/
+data/
+backend/app/data/
+backend/app/routers/
+backend/app/rag/
 
 # Logs
 *.log

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, Float, Date, ForeignKey, DateTime
 from sqlalchemy.sql import func
 
-from app.database import Base
+from app.core.database import Base
 
 
 class DailyMetric(Base):

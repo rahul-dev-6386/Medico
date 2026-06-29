@@ -1,40 +1,30 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional
+from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.core.database import get_db
 from app.models.user import User
-from app.utils.security import decode_access_token
+from app.core.security import decode_access_token
 
-security = HTTPBearer()
+GUEST_EMAIL = "guest@medico.app"
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: Request,
     db: Session = Depends(get_db),
 ) -> User:
-    token = credentials.credentials
-    payload = decode_access_token(token)
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-        )
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user",
-        )
+    user = db.query(User).filter(User.email == GUEST_EMAIL).first()
+    if user:
+        return user
+
+    user = User(
+        email=GUEST_EMAIL,
+        full_name="Guest User",
+        hashed_password="",
+        role="patient",
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
     return user

@@ -7,7 +7,7 @@ from typing import Optional, Any
 from sqlalchemy.orm import Session
 from datetime import date, timedelta
 
-from app.config import settings
+from app.core.config import settings
 from app.models.metrics import DailyMetric
 from app.models.profile import PatientProfile
 from app.models.medication import Medication

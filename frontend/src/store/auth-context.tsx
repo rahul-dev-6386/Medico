@@ -18,6 +18,14 @@ interface AuthContextType {
   isAuthenticated: boolean
 }
 
+const GUEST_USER: User = {
+  id: 0,
+  email: "guest@medico.app",
+  full_name: "Guest User",
+  avatar_url: null,
+  role: "patient",
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -30,6 +38,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (storedToken && storedUser) {
       setToken(storedToken)
       setUser(JSON.parse(storedUser))
+    } else {
+      localStorage.setItem("access_token", "guest-mode")
+      localStorage.setItem("user", JSON.stringify(GUEST_USER))
+      setToken("guest-mode")
+      setUser(GUEST_USER)
     }
   }, [])
 
@@ -43,9 +56,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem("access_token")
     localStorage.removeItem("user")
-    setToken(null)
-    setUser(null)
-    window.location.href = "/login"
+    setToken("guest-mode")
+    setUser(GUEST_USER)
+    window.location.href = "/"
   }, [])
 
   return (

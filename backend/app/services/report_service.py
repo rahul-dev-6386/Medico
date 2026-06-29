@@ -8,12 +8,12 @@ from datetime import datetime
 from app.models.report import MedicalReport
 from app.models.report_chunk import ReportChunk, LabValue
 from app.models.biomarker import BiomarkerTracking, TimelineEvent, AIInsight
-from app.utils.ocr import extract_text
-from app.config import settings
+from app.ocr import ocr_manager
+from app.core.config import settings
 from app.services.classification_service import classification_service
-from app.services.ai_provider_service import ai_provider
-from app.services.embedding_service import embedding_service
-from app.services.vector_store import vector_store
+from app.infrastructure.ai_provider_service import ai_provider
+from app.infrastructure.embedding_service import embedding_service
+from app.infrastructure.vector_store import vector_store
 from app.services.health_score_engine import HealthScoreEngine
 from app.services.risk_predictor import risk_predictor
 
@@ -46,7 +46,8 @@ class ReportService:
         self.db.commit()
         self.db.refresh(report)
 
-        extracted = extract_text(file_bytes, file.content_type or "")
+        ocr_result = ocr_manager.extract_structured(file_bytes, file.content_type or "")
+        extracted = ocr_result.get("raw_text", "")
         if not extracted:
             self.db.commit()
             return report
@@ -103,12 +104,19 @@ class ReportService:
             name = item.get("name") or item.get("test_name")
             if not name:
                 continue
+            raw_value = item.get("value")
+            numeric_value = None
+            if raw_value is not None:
+                try:
+                    numeric_value = float(raw_value)
+                except (ValueError, TypeError):
+                    numeric_value = None
             tracking = BiomarkerTracking(
                 user_id=user_id,
                 report_id=report_id,
                 biomarker_name=name,
-                value=item.get("value"),
-                value_text=str(item.get("value", "")),
+                value=numeric_value,
+                value_text=str(raw_value or ""),
                 unit=item.get("unit", ""),
                 reference_range=item.get("reference_range", item.get("range", "")),
                 is_abnormal=item.get("flag") not in (None, "", "normal", "NORMAL"),

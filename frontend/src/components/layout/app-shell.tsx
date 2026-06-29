@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isPublic = publicPaths.includes(pathname)
 
   if (!mounted) {
-    return <div className="min-h-screen bg-background">{children}</div>
+    return <div className="min-h-screen bg-[#090B10]">{children}</div>
   }
 
   if (isPublic) {
@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#090B10]">
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
       <div
         className={cn(
@@ -44,8 +44,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            className="flex-1 overflow-y-auto"
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="flex-1"
           >
             {children}
           </motion.main>

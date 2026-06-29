@@ -3,7 +3,7 @@ from fastapi import HTTPException, status
 
 from app.models.user import User
 from app.schemas.user import UserCreate
-from app.utils.security import hash_password, verify_password, create_access_token
+from app.core.security import hash_password, verify_password, create_access_token
 
 
 class AuthService:

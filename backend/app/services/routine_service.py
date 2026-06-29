@@ -4,7 +4,7 @@ from typing import Optional
 from app.models.profile import PatientProfile
 from app.models.metrics import DailyMetric
 from app.models.medication import Medication
-from app.services.ai_provider_service import ai_provider
+from app.infrastructure.ai_provider_service import ai_provider
 
 
 class RoutineService:

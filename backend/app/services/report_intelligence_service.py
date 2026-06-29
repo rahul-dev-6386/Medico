@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from app.models.report import MedicalReport
 from app.models.report_chunk import ReportChunk, LabValue
 from app.models.biomarker import BiomarkerTracking
-from app.services.embedding_service import embedding_service
-from app.services.vector_store import vector_store
+from app.infrastructure.embedding_service import embedding_service
+from app.infrastructure.vector_store import vector_store
 from app.services.citation_engine import CitationEngine
 
 

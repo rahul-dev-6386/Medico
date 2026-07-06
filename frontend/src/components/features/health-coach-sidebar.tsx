@@ -78,23 +78,23 @@ export function HealthCoachSidebar({ open, onToggle }: { open: boolean; onToggle
           initial={{ width: 0, opacity: 0 }}
           animate={{ width: 280, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
-          className="border-l border-white/[0.06] bg-[#0B0E14]/50 flex flex-col shrink-0 overflow-hidden"
+          className="border-l border-[#2B364A] bg-[#0B0F1A]/50 flex flex-col shrink-0 overflow-hidden"
         >
-          <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
+          <div className="p-4 border-b border-[#2B364A] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#22C55E] to-emerald-600 flex items-center justify-center">
                 <Bot className="h-4 w-4 text-white" />
               </div>
               <span className="text-sm font-semibold text-[#F9FAFB]">AI Coach</span>
             </div>
-            <button onClick={onToggle} className="btn-icon !p-1">
+            <button onClick={onToggle} className="btn-clinical-icon !p-1">
               <X className="h-4 w-4" />
             </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {/* Daily Tip */}
-            <div className="glass rounded-2xl p-4">
+            <div className="clinical-card !p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Lightbulb className="h-4 w-4 text-amber-400" />
                 <h4 className="text-xs font-semibold text-[#F9FAFB] uppercase tracking-wider">Daily Tip</h4>
@@ -110,7 +110,7 @@ export function HealthCoachSidebar({ open, onToggle }: { open: boolean; onToggle
             </div>
 
             {/* Quick Actions */}
-            <div className="glass rounded-2xl p-4">
+            <div className="clinical-card !p-4">
               <h4 className="text-xs font-semibold text-[#F9FAFB] uppercase tracking-wider mb-3">Quick Actions</h4>
               <div className="space-y-1.5">
                 {[
@@ -124,7 +124,7 @@ export function HealthCoachSidebar({ open, onToggle }: { open: boolean; onToggle
                     <a
                       key={action.href}
                       href={action.href}
-                      className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-white/[0.04] transition-all group"
+                      className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-[#181E2E] transition-all group"
                     >
                       <Icon className="h-3.5 w-3.5 text-[#94A3B8] group-hover:text-[#22C55E] transition-colors" />
                       <span className="text-xs text-[#94A3B8] group-hover:text-[#F9FAFB] transition-colors">{action.label}</span>
@@ -135,7 +135,7 @@ export function HealthCoachSidebar({ open, onToggle }: { open: boolean; onToggle
             </div>
 
             {/* Health Reminders */}
-            <div className="glass rounded-2xl p-4">
+            <div className="clinical-card !p-4">
               <h4 className="text-xs font-semibold text-[#F9FAFB] uppercase tracking-wider mb-3">Health Reminders</h4>
               <div className="space-y-2">
                 {[
@@ -156,10 +156,10 @@ export function HealthCoachSidebar({ open, onToggle }: { open: boolean; onToggle
             </div>
           </div>
 
-          <div className="p-3 border-t border-white/[0.06]">
+          <div className="p-3 border-t border-[#2B364A]">
             <a
               href="/chat?prompt=Give me a personalized health plan"
-              className="btn-primary text-xs w-full"
+              className="btn-clinical text-xs w-full"
             >
               <Sparkles className="h-3.5 w-3.5" />
               Ask Coach for a Plan

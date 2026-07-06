@@ -1,8 +1,9 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react"
+import { getCookie, removeCookie, setAuthTokensInMemory } from "@/lib/utils"
 
-interface User {
+export interface User {
   id: number
   email: string
   full_name: string
@@ -10,59 +11,109 @@ interface User {
   role: string
 }
 
-interface AuthContextType {
-  user: User | null
-  token: string | null
-  login: (token: string, user: User) => void
-  logout: () => void
-  isAuthenticated: boolean
+export interface AuthTokens {
+  access_token: string
+  refresh_token: string
 }
 
-const GUEST_USER: User = {
-  id: 0,
-  email: "guest@medico.app",
-  full_name: "Guest User",
-  avatar_url: null,
-  role: "patient",
+interface AuthContextType {
+  user: User | null
+  tokens: AuthTokens | null
+  login: (tokens: AuthTokens, user: User) => void
+  logout: () => void
+  isAuthenticated: boolean
+  isLoading: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api"
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [token, setToken] = useState<string | null>(null)
+  const [tokens, setTokens] = useState<AuthTokens | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
+  // On mount, try to restore session from cookies
   useEffect(() => {
-    const storedToken = localStorage.getItem("access_token")
-    const storedUser = localStorage.getItem("user")
-    if (storedToken && storedUser) {
-      setToken(storedToken)
-      setUser(JSON.parse(storedUser))
-    } else {
-      localStorage.setItem("access_token", "guest-mode")
-      localStorage.setItem("user", JSON.stringify(GUEST_USER))
-      setToken("guest-mode")
-      setUser(GUEST_USER)
+    const initAuth = async () => {
+      try {
+        const access = getCookie("access_token")
+        const refresh = getCookie("refresh_token")
+        if (access && refresh) {
+          const initialTokens = { access_token: access, refresh_token: refresh }
+          setTokens(initialTokens)
+          setAuthTokensInMemory(initialTokens)
+
+          // Validate token by fetching /me
+          const res = await fetch(`${API_URL}/auth/me`, {
+            headers: { Authorization: `Bearer ${access}` },
+          })
+          if (res.ok) {
+            const data = await res.json()
+            setUser(data.user)
+            setIsLoading(false)
+            return
+          }
+
+          // Token expired — try refresh
+          const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh_token: refresh }),
+          })
+          if (refreshRes.ok) {
+            const data = await refreshRes.json()
+            setTokens({ access_token: data.access_token, refresh_token: data.refresh_token })
+            setUser(data.user)
+          }
+        }
+      } catch {
+        // Session invalid — stay logged out
+      }
+      setIsLoading(false)
     }
+    initAuth()
   }, [])
 
-  const login = useCallback((newToken: string, newUser: User) => {
-    localStorage.setItem("access_token", newToken)
-    localStorage.setItem("user", JSON.stringify(newUser))
-    setToken(newToken)
+  const login = useCallback((newTokens: AuthTokens, newUser: User) => {
+    setTokens(newTokens)
     setUser(newUser)
+    setAuthTokensInMemory(newTokens)
   }, [])
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("access_token")
-    localStorage.removeItem("user")
-    setToken("guest-mode")
-    setUser(GUEST_USER)
+  const logout = useCallback(async () => {
+    try {
+      const refresh = tokens?.refresh_token || getCookie("refresh_token")
+      if (refresh) {
+        await fetch(`${API_URL}/auth/logout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refresh }),
+        })
+      }
+    } catch {
+      // Best-effort logout
+    }
+    removeCookie("access_token", "/")
+    removeCookie("refresh_token", "/")
+    setAuthTokensInMemory(null)
+    setTokens(null)
+    setUser(null)
     window.location.href = "/"
-  }, [])
+  }, [tokens])
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        tokens,
+        login,
+        logout,
+        isAuthenticated: !!user && !!tokens,
+        isLoading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

@@ -39,7 +39,7 @@ export function Header() {
       <div className="flex h-16 items-center px-4 max-w-7xl mx-auto">
         <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl shrink-0">
           <Activity className="h-6 w-6 text-primary" />
-          <span className="hidden sm:inline">Medico</span>
+          <span className="hidden sm:inline">Sanjeevni AI</span>
         </Link>
 
         <nav className="flex items-center gap-1 ml-2 sm:ml-8 overflow-x-auto">

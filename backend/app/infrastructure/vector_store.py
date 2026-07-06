@@ -96,9 +96,9 @@ class VectorStore:
                 ]
                 qfilter = qm.Filter(must=must)
 
-            hits = self.client.search(
+            results = self.client.query_points(
                 collection_name=self.collection,
-                query_vector=query_embedding,
+                query=query_embedding,
                 limit=top_k,
                 query_filter=qfilter,
             )
@@ -108,7 +108,7 @@ class VectorStore:
                     "score": hit.score,
                     "payload": hit.payload,
                 }
-                for hit in hits
+                for hit in results.points
             ]
         except Exception as e:
             logger.error(f"Search failed: {e}")

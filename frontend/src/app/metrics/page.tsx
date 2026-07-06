@@ -7,6 +7,8 @@ import { apiFetch } from "@/lib/utils"
 import { GlassCard } from "@/components/ui/glass-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { motion } from "framer-motion"
 import {
   Activity, Moon, Droplets, Weight, Heart, TrendingUp,
@@ -199,7 +201,11 @@ export default function MetricsPage() {
               >
                 <div className="flex items-start gap-3">
                   <insight.icon className={`h-4 w-4 mt-0.5 ${insight.color}`} />
-                  <p className="text-sm text-muted-foreground leading-relaxed">{insight.text}</p>
+                  <div className="prose prose-invert prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {insight.text}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               </motion.div>
             ))}

@@ -1,397 +1,400 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
-import { apiFetch, cn } from "@/lib/utils"
-import { motion, AnimatePresence } from "framer-motion"
+import { useState, useCallback, useEffect } from "react"
+import { motion } from "framer-motion"
 import {
-  Pill, Search, AlertTriangle, Loader2, Plus, X,
-  BookOpen, AlertCircle, Shield, ChevronRight,
-  FlaskConical, Heart, ExternalLink, Sparkles,
-  CheckCircle, MinusCircle,
+  Pill, AlertTriangle, Loader2,
+  AlertCircle, ChevronRight,
+  Sparkles, Bot,
 } from "lucide-react"
+import { apiFetch, formatDrugName } from "@/lib/utils"
+
+import DrugSearch from "@/components/drugs/DrugSearch"
+import HeroCard from "@/components/drugs/HeroCard"
+import CategoryGrid from "@/components/drugs/CategoryGrid"
+import PopularDrugCard from "@/components/drugs/PopularDrugCard"
+import SafetyBanner from "@/components/drugs/SafetyBanner"
+import DrugAnswer from "@/components/drugs/DrugAnswer"
+import DisclaimerBar from "@/components/drugs/DisclaimerBar"
+
+/* ── Types ── */
 
 interface DrugInfo {
   generic_name: string | null
   brand_name: string | null
   drug_class: string | null
-  indications: string | null
-  contraindications: string | null
-  side_effects: string | null
-  dosage_info: string | null
-  interactions: string | null
-  pregnancy_category: string | null
-  score?: number
+  pharmacologic_class: string | null
+  rxnorm_id: string | null
+  brand_names: string[] | null
 }
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.05 } },
-}
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
+interface DrugAnswerResponse {
+  drug_name: string
+  markdown: string
+  references: string[]
 }
 
-function DrugSection({ title, content, icon: Icon, color }: { title: string; content: string | null; icon: any; color: string }) {
-  if (!content) return null
-  const [expanded, setExpanded] = useState(false)
-  const truncated = content.length > 200
+type SearchPhase =
+  | "idle"
+  | "local_loading"
+  | "local_results"
+  | "no_match"
+  | "ai_loading"
+  | "ai_result"
+  | "ai_error"
+  | "answer_view"
 
-  return (
-    <div className="glass rounded-xl p-4 space-y-2">
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4" style={{ color }} />
-        <h4 className="text-xs font-semibold text-[#F9FAFB] uppercase tracking-wider">{title}</h4>
-      </div>
-      <p className={cn("text-sm text-[#94A3B8] leading-relaxed", !expanded && truncated && "line-clamp-3")}>
-        {content}
-      </p>
-      {truncated && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="text-xs text-[#22C55E] hover:underline"
-        >
-          {expanded ? "Show less" : "Show more"}
-        </button>
-      )}
-    </div>
-  )
-}
+/* ── Constants ── */
+
+const POPULAR_DRUGS = [
+  { name: "Metformin", drugClass: "Biguanide" },
+  { name: "Lisinopril", drugClass: "ACE Inhibitor" },
+  { name: "Atorvastatin", drugClass: "Statin" },
+  { name: "Omeprazole", drugClass: "Proton Pump Inhibitor" },
+  { name: "Levothyroxine", drugClass: "Thyroid Hormone" },
+  { name: "Amlodipine", drugClass: "Calcium Channel Blocker" },
+  { name: "Albuterol", drugClass: "Beta-2 Agonist" },
+  { name: "Losartan", drugClass: "ARB" },
+]
+
+/* ── Main Page ── */
 
 export default function DrugsPage() {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<DrugInfo[]>([])
-  const [loading, setLoading] = useState(false)
-  const [selected, setSelected] = useState<DrugInfo | null>(null)
-  const [myDrugs, setMyDrugs] = useState<string[]>([])
-  const [drugInput, setDrugInput] = useState("")
+  const [phase, setPhase] = useState<SearchPhase>("idle")
+
+  const [answerLoading, setAnswerLoading] = useState(false)
+  const [answer, setAnswer] = useState<DrugAnswerResponse | null>(null)
+  const [answerIsAi, setAnswerIsAi] = useState(false)
   const [source, setSource] = useState<string | null>(null)
-  const [searchInitiated, setSearchInitiated] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [recentSearches, setRecentSearches] = useState<string[]>([])
+  const [selecting, setSelecting] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [lastSearchedTerm, setLastSearchedTerm] = useState("")
+
+  const isShowingAnswer = phase === "answer_view"
+
+  /* ── Persist ── */
+  useEffect(() => {
+    try {
+      const r = localStorage.getItem("medico_recent_drugs")
+      if (r) setRecentSearches(JSON.parse(r))
+    } catch { /* */ }
+  }, [])
+
+  const persist = (k: string, v: any) => localStorage.setItem(k, JSON.stringify(v))
+
+  const saveRecent = (name: string) => {
+    const upd = [name, ...recentSearches.filter((s) => s !== name)].slice(0, 10)
+    setRecentSearches(upd)
+    persist("medico_recent_drugs", upd)
+  }
+
+  const clearRecent = () => {
+    setRecentSearches([])
+    persist("medico_recent_drugs", [])
+  }
+
+  /* ── Phase 1: Local Database Search ── */
 
   const handleSearch = useCallback(async (q?: string) => {
-    const searchTerm = (q || query).trim()
-    if (!searchTerm) return
-    setLoading(true)
-    setSearchInitiated(true)
-    setSelected(null)
+    const term = (q || query).trim()
+    if (!term) return
+
+    setPhase("local_loading")
+    setQuery(term)
+    setLastSearchedTerm(term)
+    setAnswer(null)
+    setSource(null)
+    setResults([])
+    setAiError(null)
+    setAnswerIsAi(false)
+
     try {
-      const data = await apiFetch(`/drugs/search?q=${encodeURIComponent(searchTerm)}`)
-      setResults(data.drugs || [])
-      setSource(data.source || null)
+      const data = await apiFetch(`/drugs/search?q=${encodeURIComponent(term)}`)
+      const drugs: DrugInfo[] = data.drugs || []
+      if (drugs.length > 0) {
+        setResults(drugs)
+        setSource(data.source || null)
+        setPhase("local_results")
+      } else {
+        setPhase("no_match")
+      }
+      saveRecent(term)
     } catch {
       setResults([])
-    } finally {
-      setLoading(false)
+      setPhase("no_match")
     }
   }, [query])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleSearch()
+  /* ── Answer from local selection ── */
+
+  const fetchAnswer = async (drugName: string) => {
+    setAnswerLoading(true)
+    setAnswer(null)
+    try {
+      const data = await apiFetch(`/drugs/answer?q=${encodeURIComponent(drugName)}`)
+      setAnswer(data)
+      setAnswerIsAi(false)
+      setPhase("answer_view")
+    } catch {
+      setAnswer(null)
+    } finally {
+      setAnswerLoading(false)
+    }
   }
 
   const selectDrug = (drug: DrugInfo) => {
-    setSelected(drug)
-    if (drug.generic_name && !myDrugs.includes(drug.generic_name)) {
-      setMyDrugs((prev) => [...prev, drug.generic_name!])
+    const name = drug.brand_name || drug.generic_name || ""
+    setSelecting(true)
+    fetchAnswer(name).finally(() => setSelecting(false))
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  /* ── Phase 2: AI Search ── */
+
+  const handleAiSearch = async () => {
+    const term = query.trim()
+    if (!term) return
+
+    setPhase("ai_loading")
+    setAnswer(null)
+    setResults([])
+    setAiError(null)
+    setAnswerIsAi(true)
+    setLastSearchedTerm(term)
+
+    try {
+      const data = await apiFetch(`/drugs/ai-search?q=${encodeURIComponent(term)}`)
+      setAnswer(data)
+      setPhase("ai_result")
+    } catch (e: any) {
+      setAiError(e.message || "AI search failed. Please try again.")
+      setPhase("ai_error")
     }
   }
 
-  const addCustomDrug = () => {
-    const name = drugInput.trim()
-    if (name && !myDrugs.includes(name)) {
-      setMyDrugs((prev) => [...prev, name])
-      setDrugInput("")
-    }
+  const handleCategoryClick = (name: string) => {
+    setQuery(name)
+    handleSearch(name)
   }
 
-  const removeDrug = (name: string) => {
-    setMyDrugs((prev) => prev.filter((d) => d !== name))
+  const handlePopularClick = (name: string) => {
+    setQuery(name)
+    handleSearch(name)
   }
 
-  const checkInteractions = () => {
-    if (myDrugs.length >= 2) {
-      setQuery(myDrugs.join(", "))
-      handleSearch(myDrugs.join(" + "))
-    }
+  const handleBack = () => {
+    setPhase("idle")
+    setAnswer(null)
+    setResults([])
+    setAnswerIsAi(false)
+    setAiError(null)
+    setLastSearchedTerm("")
   }
 
+  /* ── Render ── */
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="p-6 max-w-6xl mx-auto space-y-6"
-    >
-      {/* Header */}
-      <motion.div variants={itemVariants} className="text-center py-4">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-amber-500/20">
-          <Pill className="h-7 w-7 text-white" />
-        </div>
-        <h1 className="text-2xl font-bold text-[#F9FAFB] mb-1">Drug Information & Interactions</h1>
-        <p className="text-sm text-[#94A3B8] max-w-xl mx-auto">
-          Search drug information, side effects, contraindications, and check for interactions between your medications.
-        </p>
-      </motion.div>
-
-      {/* Drug Search */}
-      <motion.div variants={itemVariants} className="max-w-2xl mx-auto">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-[#94A3B8]" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Search by drug name, e.g. Metformin, Lisinopril, Atorvastatin..."
-            className="w-full h-13 pl-12 pr-14 rounded-2xl bg-[#111827] border border-white/[0.08] text-[#F9FAFB] text-base outline-none transition-all focus:border-[#22C55E]/40 focus:ring-2 focus:ring-[#22C55E]/10 placeholder:text-[#94A3B8]/60"
-          />
-          <button
-            onClick={() => handleSearch()}
-            disabled={loading || !query.trim()}
-            className="absolute right-3 top-1/2 -translate-y-1/2 px-4 py-2 rounded-xl bg-[#22C55E] text-white text-sm font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
-          </button>
-        </div>
-      </motion.div>
-
-      {/* My Medications (Interaction Checker) */}
-      <motion.div variants={itemVariants} className="max-w-2xl mx-auto">
-        <div className="glass rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="h-4 w-4 text-amber-400" />
-            <h3 className="text-sm font-semibold text-[#F9FAFB]">Interaction Checker</h3>
-          </div>
-          <p className="text-xs text-[#94A3B8] mb-3">
-            Add medications to check for potential interactions.
-          </p>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {myDrugs.map((name) => (
-              <span
-                key={name}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20"
-              >
-                {name}
-                <button onClick={() => removeDrug(name)} className="hover:text-red-400 transition-colors">
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={drugInput}
-              onChange={(e) => setDrugInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") addCustomDrug() }}
-              placeholder="Add a medication..."
-              className="flex-1 input-field text-xs h-9"
-            />
-            <button onClick={addCustomDrug} className="btn-secondary text-xs h-9">
-              <Plus className="h-3.5 w-3.5" />
-              Add
-            </button>
-            <button
-              onClick={checkInteractions}
-              disabled={myDrugs.length < 2}
-              className="btn-primary text-xs h-9"
-            >
-              <AlertTriangle className="h-3.5 w-3.5" />
-              Check
-            </button>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Search Results */}
-      {loading && (
-        <div className="space-y-3 animate-pulse">
-          <div className="h-16 skeleton rounded-2xl" />
-          <div className="h-48 skeleton rounded-2xl" />
-        </div>
-      )}
-
-      {!loading && searchInitiated && results.length === 0 && (
-        <motion.div variants={itemVariants} className="text-center py-8">
-          <AlertCircle className="h-8 w-8 text-amber-400/60 mx-auto mb-3" />
-          <p className="text-sm text-[#94A3B8]">No drug information found for &quot;{query}&quot;</p>
-          <p className="text-xs text-[#94A3B8]/60 mt-1">Try searching by generic name (e.g., Metformin) or brand name (e.g., Glucophage)</p>
-        </motion.div>
-      )}
-
-      {/* Drug Detail */}
-      <AnimatePresence mode="wait">
-        {selected && (
-          <motion.div
-            key={selected.generic_name || "detail"}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-4"
-          >
-            {/* Drug Header */}
-            <div className="glass rounded-2xl p-6 glow-cyan">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shrink-0 shadow-lg">
-                  <Pill className="h-6 w-6 text-white" />
+    <div className="flex min-h-screen flex-col bg-[#090B10]">
+      {/* Mobile header */}
+      <div className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#090B10]/90 px-4 py-3 backdrop-blur-xl lg:hidden">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#0EA5A9] to-teal-600">
+                  <Pill className="h-4 w-4 text-white" />
                 </div>
-                <div className="flex-1">
-                  <h2 className="text-xl font-bold text-[#F9FAFB]">
-                    {selected.brand_name || selected.generic_name}
-                  </h2>
-                  {selected.generic_name && selected.brand_name && (
-                    <p className="text-sm text-[#94A3B8]">Generic: {selected.generic_name}</p>
-                  )}
-                  {selected.drug_class && (
-                    <p className="text-xs text-[#94A3B8] mt-1">Class: {selected.drug_class}</p>
-                  )}
-                </div>
-                {source && (
-                  <span className={cn(
-                    "badge",
-                    source === "openfda" ? "badge-amber" : "badge-green"
-                  )}>
-                    {source === "openfda" ? "FDA Data" : "Local DB"}
-                  </span>
+                <span className="text-sm font-bold text-[#EDF2F7]">Drug Assistant</span>
+              </div>
+            </div>
+          </div>
+
+      <main className="flex-1">
+        <div className="mx-auto max-w-7xl px-6 py-6 sm:px-8 lg:py-8">
+            {/* Global Search Bar */}
+            <div className="relative mb-6">
+              <div className="pointer-events-none absolute -top-8 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-[#0EA5A9]/10 to-transparent" />
+              <DrugSearch
+                query={query}
+                onQueryChange={setQuery}
+                onSearch={() => handleSearch()}
+                loading={phase === "local_loading"}
+                onClearRecent={clearRecent}
+              />
+            </div>
+
+            <div className="min-w-0 flex-1">
+                {/* Loading Skeletons */}
+                {phase === "local_loading" && (
+                  <div className="animate-pulse space-y-4">
+                    <div className="skeleton h-12 rounded-2xl" />
+                    <div className="skeleton h-4 w-1/2 rounded-lg" />
+                    <div className="skeleton h-4 w-3/4 rounded-lg" />
+                    <div className="skeleton h-48 rounded-2xl" />
+                  </div>
+                )}
+
+                {answerLoading && (
+                  <div className="animate-pulse space-y-4">
+                    <div className="skeleton h-8 w-1/3 rounded-lg" />
+                    <div className="skeleton h-4 w-2/3 rounded-lg" />
+                    <div className="skeleton h-32 rounded-2xl" />
+                    <div className="skeleton h-24 rounded-2xl" />
+                    <div className="skeleton h-16 rounded-2xl" />
+                  </div>
+                )}
+
+                {/* AI Loading */}
+                {phase === "ai_loading" && (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="relative mb-6">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-xl shadow-teal-500/20">
+                        <Bot className="h-8 w-8 text-white" />
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-[#090B10]">
+                        <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                      </div>
+                    </div>
+                    <p className="mb-2 text-lg font-semibold text-[#EDF2F7]">AI is analyzing your query</p>
+                    <p className="text-sm text-[#8B9BB5]">
+                      Searching medical knowledge for &quot;{query}&quot;
+                    </p>
+                    <Loader2 className="mt-4 h-5 w-5 animate-spin text-[#0EA5A9]" />
+                  </div>
+                )}
+
+                {/* AI Error */}
+                {phase === "ai_error" && (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <AlertCircle className="mx-auto mb-3 h-10 w-10 text-red-400/60" />
+                    <p className="text-sm text-[#8B9BB5]">AI search failed</p>
+                    {aiError && <p className="mt-1 text-xs text-[#8B9BB5]/60">{aiError}</p>}
+                    <button
+                      onClick={handleAiSearch}
+                      className="mt-4 flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-teal-500/20"
+                    >
+                      <Bot className="h-4 w-4" />
+                      Try again
+                    </button>
+                  </div>
+                )}
+
+                {/* Idle state */}
+                {phase === "idle" && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+                    <HeroCard onSearch={handlePopularClick} />
+                    <CategoryGrid onCategoryClick={handleCategoryClick} />
+                    <section>
+                      <div className="mb-4 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0EA5A9]/10">
+                            <Pill size={14} className="text-[#0EA5A9]" />
+                          </div>
+                          <h2 className="text-sm font-semibold text-[#EDF2F7]">Popular Drugs</h2>
+                        </div>
+                        <span className="rounded-full border border-white/[0.06] bg-white/[0.03] px-2.5 py-0.5 text-[11px] text-[#8B9BB5]">{POPULAR_DRUGS.length} medications</span>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        {POPULAR_DRUGS.map((drug, i) => (
+                          <PopularDrugCard
+                            key={drug.name}
+                            name={drug.name}
+                            drugClass={drug.drugClass}
+                            index={i}
+                            onClick={() => handlePopularClick(drug.name)}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                    <SafetyBanner />
+                  </motion.div>
+                )}
+
+                {/* Local Results */}
+                {phase === "local_results" && results.length > 0 && !selecting && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-xs text-[#8B9BB5]">
+                        Found <span className="font-medium text-[#EDF2F7]">{results.length}</span> result{results.length > 1 ? "s" : ""} in local database
+                        {source && source !== "local" && <span> (sources: {source})</span>}
+                      </p>
+                    </div>
+                    {results.map((drug, i) => (
+                      <motion.button
+                        key={drug.generic_name || i}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        onClick={() => selectDrug(drug)}
+                        className="group flex w-full items-center gap-4 rounded-2xl border border-white/[0.08] bg-gradient-to-r from-white/[0.04] to-transparent p-4 text-left transition-all hover:border-[#0EA5A9]/30 hover:bg-[#0EA5A9]/[0.03] hover:shadow-lg hover:shadow-[#0EA5A9]/5"
+                      >
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#0EA5A9] to-teal-600 shadow-lg shadow-[#0EA5A9]/15">
+                          <Pill className="h-5 w-5 text-white" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-[#EDF2F7] transition-colors group-hover:text-[#0EA5A9]">{formatDrugName(drug.brand_name || drug.generic_name || "")}</p>
+                          <p className="truncate text-xs text-[#8B9BB5]">
+                            {drug.generic_name && drug.brand_name ? `Generic: ${formatDrugName(drug.generic_name)}` : formatDrugName(drug.drug_class || "") || "Medication"}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-[#8B9BB5] transition-colors group-hover:text-[#0EA5A9]" />
+                      </motion.button>
+                    ))}
+                    <div className="pt-2 text-center">
+                      <button
+                        onClick={handleAiSearch}
+                        className="inline-flex items-center gap-2 text-xs text-[#8B9BB5] transition-colors hover:text-emerald-300"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        {lastSearchedTerm && <>Ask AI about &quot;{lastSearchedTerm}&quot;</>}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* No Match */}
+                {phase === "no_match" && !selecting && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col items-center justify-center py-16 text-center"
+                  >
+                    <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-500/15 bg-amber-500/10">
+                      <AlertTriangle className="h-7 w-7 text-amber-400/70" />
+                    </div>
+                    <h3 className="mb-2 text-lg font-semibold text-[#EDF2F7]">No relevant medicine found</h3>
+                    <p className="mb-2 max-w-md text-sm text-[#8B9BB5]">
+                      &quot;{lastSearchedTerm || query}&quot; was not found in the local verified database.
+                    </p>
+                    <p className="mb-6 max-w-sm text-xs text-[#8B9BB5]/60">
+                      This will bypass the local database and use the AI model to answer your query.
+                    </p>
+                    <button
+                      onClick={handleAiSearch}
+                      className="group flex items-center gap-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3.5 text-sm font-semibold text-white shadow-xl shadow-teal-500/15 transition-all hover:-translate-y-0.5 hover:shadow-teal-500/25 active:scale-[0.98] active:translate-y-0"
+                    >
+                      <Bot className="h-5 w-5" />
+                      Search with AI
+                      <Sparkles className="h-4 w-4 text-emerald-200" />
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* Drug Answer */}
+                {(isShowingAnswer || phase === "ai_result") && answer && (
+                  <DrugAnswer
+                    markdown={answer.markdown}
+                    references={answer.references}
+                    drugName={answer.drug_name}
+                    isAi={answerIsAi || phase === "ai_result"}
+                    onBack={handleBack}
+                  />
                 )}
               </div>
-            </div>
-
-            {/* Drug Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <DrugSection
-                title="Indications"
-                content={selected.indications}
-                icon={Heart}
-                color="#22C55E"
-              />
-              <DrugSection
-                title="Contraindications"
-                content={selected.contraindications}
-                icon={MinusCircle}
-                color="#EF4444"
-              />
-              <DrugSection
-                title="Side Effects"
-                content={selected.side_effects}
-                icon={AlertTriangle}
-                color="#F59E0B"
-              />
-              <DrugSection
-                title="Dosage Information"
-                content={selected.dosage_info}
-                icon={FlaskConical}
-                color="#06B6D4"
-              />
-              {selected.pregnancy_category && (
-                <DrugSection
-                  title="Pregnancy Category"
-                  content={selected.pregnancy_category}
-                  icon={Heart}
-                  color="#EC4899"
-                />
-              )}
-            </div>
-
-            {/* Interactions */}
-            {selected.interactions && (
-              <div className="glass rounded-2xl p-5 border-l-4" style={{ borderLeftColor: "#EF4444" }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <AlertTriangle className="h-5 w-5 text-red-400" />
-                  <h3 className="text-sm font-semibold text-[#F9FAFB]">Drug Interactions</h3>
-                </div>
-                <p className="text-sm text-[#94A3B8] leading-relaxed whitespace-pre-wrap">
-                  {selected.interactions}
-                </p>
-              </div>
-            )}
-
-            {!selected.interactions && (
-              <div className="glass rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="h-4 w-4 text-[#22C55E]" />
-                  <p className="text-sm text-[#F9FAFB]">No specific interaction data available</p>
-                </div>
-                <p className="text-xs text-[#94A3B8]">
-                  Always consult your healthcare provider or pharmacist about potential drug interactions.
-                </p>
-              </div>
-            )}
-
-            {/* Search Source Hint */}
-            <p className="text-xs text-[#94A3B8]/50 text-center">
-              Data sourced from {source === "openfda" ? "OpenFDA" : "local drug database"}.
-              Always verify critical medication information with a healthcare professional.
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Initial results list */}
-      {!loading && results.length > 0 && !selected && (
-        <motion.div variants={itemVariants} className="space-y-2">
-          <p className="text-xs text-[#94A3B8] mb-2">
-            Found {results.length} result{results.length > 1 ? "s" : ""}
-            {source && <span> ({source === "openfda" ? "from OpenFDA" : "from local database"})</span>}
-          </p>
-          {results.map((drug, i) => (
-            <motion.button
-              key={drug.generic_name || i}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.04 }}
-              onClick={() => selectDrug(drug)}
-              className="w-full glass rounded-2xl p-4 text-left hover:border-white/[0.12] transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shrink-0 shadow-lg">
-                  <Pill className="h-5 w-5 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#F9FAFB]">
-                    {drug.brand_name || drug.generic_name}
-                  </p>
-                  <p className="text-xs text-[#94A3B8]">
-                    {drug.generic_name && drug.brand_name ? `Generic: ${drug.generic_name}` : drug.drug_class || "Drug"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {drug.score != null && (
-                    <span className="text-xs text-[#94A3B8]">{(drug.score * 100).toFixed(0)}%</span>
-                  )}
-                  <ChevronRight className="h-4 w-4 text-[#94A3B8] group-hover:text-[#22C55E] transition-colors" />
-                </div>
-              </div>
-            </motion.button>
-          ))}
-        </motion.div>
-      )}
-
-      {/* Empty State */}
-      {!loading && !searchInitiated && (
-        <motion.div variants={itemVariants} className="text-center py-10">
-          <div className="w-14 h-14 rounded-2xl bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
-            <BookOpen className="h-7 w-7 text-[#94A3B8]/40" />
           </div>
-          <h3 className="text-lg font-semibold text-[#F9FAFB] mb-2">Drug Information Database</h3>
-          <p className="text-sm text-[#94A3B8] max-w-md mx-auto mb-6">
-            Search for a medication to view detailed information including indications, side effects, contraindications, and drug interactions sourced from OpenFDA.
-          </p>
-          <div className="flex flex-wrap justify-center gap-2">
-            {["Metformin", "Lisinopril", "Atorvastatin", "Omeprazole", "Albuterol"].map((suggestion) => (
-              <button
-                key={suggestion}
-                onClick={() => { setQuery(suggestion); handleSearch(suggestion) }}
-                className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.06] border border-white/[0.06] text-[#94A3B8] hover:text-[#F9FAFB] transition-all"
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
-        </motion.div>
-      )}
-    </motion.div>
+        </main>
+
+        <DisclaimerBar />
+      </div>
   )
 }

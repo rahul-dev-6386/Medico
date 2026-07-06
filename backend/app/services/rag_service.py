@@ -12,14 +12,12 @@ try:
     from langchain_community.document_loaders import TextLoader, PyPDFLoader
     from langchain.text_splitter import RecursiveCharacterTextSplitter
     from langchain.chains import RetrievalQA
-    from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+    from langchain_openai import ChatOpenAI
     from langchain.schema import Document
     from langchain.prompts import PromptTemplate
     _langchain_ok = True
 except Exception:
     _langchain_ok = False
-
-os.environ["GOOGLE_API_KEY"] = settings.GEMINI_API_KEY or ""
 
 
 class RAGService:
@@ -28,26 +26,53 @@ class RAGService:
             self.initialized = False
             return
         self.index_path = index_path
-        self.embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/gemini-embedding-001",
-            google_api_key=settings.GEMINI_API_KEY,
-        )
-        self.llm = ChatGoogleGenerativeAI(
-            model="models/gemini-2.5-flash",
-            google_api_key=settings.GEMINI_API_KEY,
-            temperature=0.3,
-        )
+
+        if settings.GEMINI_API_KEY:
+            try:
+                from langchain_google_genai import GoogleGenerativeAIEmbeddings
+                self.embeddings = GoogleGenerativeAIEmbeddings(
+                    model="models/gemini-embedding-001",
+                    google_api_key=settings.GEMINI_API_KEY,
+                )
+            except Exception:
+                self.embeddings = None
+        else:
+            self.embeddings = None
+
+        if settings.OPENROUTER_API_KEY:
+            self.llm = ChatOpenAI(
+                model="openai/gpt-oss-120b:free",
+                openai_api_key=settings.OPENROUTER_API_KEY,
+                openai_api_base="https://openrouter.ai/api/v1",
+                temperature=0.3,
+            )
+        elif settings.GEMINI_API_KEY:
+            try:
+                from langchain_google_genai import ChatGoogleGenerativeAI
+                self.llm = ChatGoogleGenerativeAI(
+                    model="models/gemini-2.5-flash",
+                    google_api_key=settings.GEMINI_API_KEY,
+                    temperature=0.3,
+                )
+            except Exception:
+                self.llm = None
+        else:
+            self.llm = None
         self.vector_store: Optional[FAISS] = None
         self._load_index()
 
     def _load_index(self):
         index_file = os.path.join(self.index_path, "index.faiss")
-        if os.path.exists(index_file):
-            self.vector_store = FAISS.load_local(
-                self.index_path,
-                self.embeddings,
-                allow_dangerous_deserialization=True,
-            )
+        if os.path.exists(index_file) and self.embeddings is not None:
+            try:
+                self.vector_store = FAISS.load_local(
+                    self.index_path,
+                    self.embeddings,
+                    allow_dangerous_deserialization=True,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to load FAISS index: {e}")
+                self.vector_store = None
 
     def _save_index(self):
         if self.vector_store:

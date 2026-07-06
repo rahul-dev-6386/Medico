@@ -8,11 +8,14 @@ from app.models.report import MedicalReport
 from app.models.notification import Notification, NotificationConfig
 from app.models.medical_knowledge import MedicalGuideline
 from app.models.pubmed_article import PubMedArticle
-from app.models.drug_database import DrugEntry
+from app.models.drug_database import DrugEntry, DrugInteraction
 from app.models.report_chunk import ReportChunk, LabValue
 from app.models.metrics_embedding import MetricsEmbedding
 from app.models.biomarker import BiomarkerTracking, TimelineEvent, AIInsight
 from app.models.ai_cache import AICache
+from app.models.refresh_token import RefreshToken
+from app.models.user_report_chunk import UserReportChunk
+from app.models.email_verification import EmailVerification
 
 __all__ = [
     "User",
@@ -29,6 +32,7 @@ __all__ = [
     "MedicalGuideline",
     "PubMedArticle",
     "DrugEntry",
+    "DrugInteraction",
     "ReportChunk",
     "LabValue",
     "MetricsEmbedding",
@@ -36,4 +40,7 @@ __all__ = [
     "TimelineEvent",
     "AIInsight",
     "AICache",
+    "RefreshToken",
+    "UserReportChunk",
+    "EmailVerification",
 ]

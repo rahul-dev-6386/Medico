@@ -20,4 +20,8 @@ class MedicalReport(Base):
     health_score = Column(Integer, nullable=True)
     risk_scores = Column(JSON, nullable=True)
     processed = Column(Boolean, default=False)
+    status = Column(String(20), default="pending")
+    report_type = Column(String(100), nullable=True)
+    error_message = Column(Text, nullable=True)
+    processing_completed_at = Column(DateTime(timezone=True), nullable=True)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())

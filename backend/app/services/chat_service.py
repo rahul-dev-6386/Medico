@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Generator
 import json
 
 from app.models.chat import ChatSession, ChatMessage
@@ -11,6 +11,7 @@ from app.models.report import MedicalReport
 from app.infrastructure.ai_provider_service import ai_provider
 from app.services.safety_service import SafetyService
 from app.services.query_router import QueryRouter
+from app.services.context_fusion_service import ContextFusionService
 
 
 class ChatService:
@@ -69,17 +70,52 @@ class ChatService:
         history = self.get_session_messages(session_id)
         conversation_context = self._build_conversation_context(history)
 
+        # Inject user context via ContextFusionService
+        fusion = ContextFusionService(self.db)
+        fusion_result = fusion.retrieve(query=content, user_id=user_id, top_k_textbooks=3, top_k_user=5)
+        user_context = ""
+        if fusion_result.contexts:
+            user_context = "\n\n## User's Medical Context\n"
+            for ctx in fusion_result.contexts[:8]:
+                src = ctx.get("source", "")
+                text = ctx.get("content", "")
+                if text:
+                    label = "Your Report" if src == "user_report_chunks" else "Textbook"
+                    user_context += f"[{label}] {text[:500]}\n\n"
+
         system_prompt = (
-            "You are an AI health assistant powered by medical intelligence. "
-            "You provide evidence-based health information from medical guidelines, research, and patient data. "
+            "You are **Medico AI**. You are an evidence-based medical assistant. "
+            "You provide structured, scannable health information from medical guidelines, research, and patient data. "
             "You are NOT a doctor and must NEVER claim to provide definitive diagnoses or prescriptions. "
             "Always include a disclaimer where appropriate. "
             "Use the patient's health profile to personalize your response.\n\n"
+            "## Formatting Rules\n\n"
+            "Never return large paragraphs. Always use:\n"
+            "- `# Main heading` at the top\n"
+            "- `## Sections` with relevant emoji (use sparingly)\n"
+            "- `### Subsections` when needed\n"
+            "- Bullet lists and numbered lists\n"
+            "- Markdown tables when comparing values\n"
+            "- Blockquotes (`>`) for important notes or red flags\n"
+            "- **Bold** for diseases, medications, and laboratory tests\n"
+            "- Emojis sparingly (only: 🩺📊⚠️✅🚨💬📚) to improve scanning\n\n"
+            "Keep answers visually structured. The user should understand the answer within 10 seconds.\n\n"
+            "Use this template for general medical answers:\n"
+            "- `# Short Answer` — 2-3 sentence explanation\n"
+            "- `## 🩺 What It Means` — explain simply\n"
+            "- `## 📊 Key Findings` — bullet list\n"
+            "- `## 📋 Interpretation` — table when possible\n"
+            "- `## ⚠️ Possible Causes` — grouped Common / Less Common\n"
+            "- `## ✅ What You Can Do` — actionable advice\n"
+            "- `## 🚨 Seek Medical Care Immediately If` — bullet list\n"
+            "- `## 💬 If You Have Your Results` — ask for specific values\n"
+            "- `## 📚 References` — sources used\n\n"
             f"## Patient Profile\n{patient_summary}"
+            f"{user_context}"
         )
 
         if route_result["citations"]:
-            citations_text = "\n\n**Retrieved Sources:**\n"
+            citations_text = "\n\n📚 **Retrieved Sources:**\n"
             for c in route_result["citations"]:
                 url = f" ({c['url']})" if c.get("url") else ""
                 citations_text += f"- {c['title']} — *{c['source']}*{url}\n"
@@ -92,7 +128,7 @@ class ChatService:
         )
 
         if route_result["citations"]:
-            ai_response += "\n\n---\n**Sources:**\n"
+            ai_response += "\n\n---\n📚 **Sources:**\n"
             seen = set()
             for c in route_result["citations"]:
                 key = (c["source"], c["title"])
@@ -118,6 +154,122 @@ class ChatService:
         self.db.commit()
 
         return {"emergency": False, "message": ai_response}
+
+    def stream_response(self, session_id: int, user_id: int, content: str) -> Generator[str, None, None]:
+        safety_result = self.safety.check_message(content)
+        if safety_result["emergency"]:
+            yield f"data: {json.dumps({'type': 'error', 'content': safety_result['message']})}\n\n"
+            return
+
+        user_msg = ChatMessage(session_id=session_id, role="user", content=content)
+        self.db.add(user_msg)
+        self.db.flush()
+
+        router = QueryRouter(self.db)
+        route_result = router.route(content, user_id)
+
+        if route_result["intent"] == "emergency":
+            self.db.commit()
+            yield f"data: {json.dumps({'type': 'error', 'content': route_result['response']})}\n\n"
+            return
+
+        patient_summary = self._build_patient_summary(user_id)
+        history = self.get_session_messages(session_id)
+        conversation_context = self._build_conversation_context(history)
+
+        # Inject user context via ContextFusionService
+        fusion = ContextFusionService(self.db)
+        fusion_result = fusion.retrieve(query=content, user_id=user_id, top_k_textbooks=3, top_k_user=5)
+        user_context = ""
+        if fusion_result.contexts:
+            user_context = "\n\n## User's Medical Context\n"
+            for ctx in fusion_result.contexts[:8]:
+                src = ctx.get("source", "")
+                text = ctx.get("content", "")
+                if text:
+                    label = "Your Report" if src == "user_report_chunks" else "Textbook"
+                    user_context += f"[{label}] {text[:500]}\n\n"
+
+        system_prompt = (
+            "You are **Medico AI**. You are an evidence-based medical assistant. "
+            "You provide structured, scannable health information from medical guidelines, research, and patient data. "
+            "You are NOT a doctor and must NEVER claim to provide definitive diagnoses or prescriptions. "
+            "Always include a disclaimer where appropriate. "
+            "Use the patient's health profile to personalize your response.\n\n"
+            "## Formatting Rules\n\n"
+            "Never return large paragraphs. Always use:\n"
+            "- `# Main heading` at the top\n"
+            "- `## Sections` with relevant emoji (use sparingly)\n"
+            "- `### Subsections` when needed\n"
+            "- Bullet lists and numbered lists\n"
+            "- Markdown tables when comparing values\n"
+            "- Blockquotes (`>`) for important notes or red flags\n"
+            "- **Bold** for diseases, medications, and laboratory tests\n"
+            "- Emojis sparingly (only: 🩺📊⚠️✅🚨💬📚) to improve scanning\n\n"
+            "Keep answers visually structured. The user should understand the answer within 10 seconds.\n\n"
+            "Use this template for general medical answers:\n"
+            "- `# Short Answer` — 2-3 sentence explanation\n"
+            "- `## 🩺 What It Means` — explain simply\n"
+            "- `## 📊 Key Findings` — bullet list\n"
+            "- `## 📋 Interpretation` — table when possible\n"
+            "- `## ⚠️ Possible Causes` — grouped Common / Less Common\n"
+            "- `## ✅ What You Can Do` — actionable advice\n"
+            "- `## 🚨 Seek Medical Care Immediately If` — bullet list\n"
+            "- `## 💬 If You Have Your Results` — ask for specific values\n"
+            "- `## 📚 References` — sources used\n\n"
+            f"## Patient Profile\n{patient_summary}"
+            f"{user_context}"
+        )
+
+        if route_result["citations"]:
+            citations_text = "\n\n📚 **Retrieved Sources:**\n"
+            for c in route_result["citations"]:
+                url = f" ({c['url']})" if c.get("url") else ""
+                citations_text += f"- {c['title']} — *{c['source']}*{url}\n"
+            system_prompt += f"\n\n## Retrieved Medical Knowledge\n{route_result['response']}{citations_text}"
+
+        full_response = ""
+        try:
+            for token in ai_provider.generate_chat_response_stream(
+                message=content,
+                context=conversation_context,
+                system_instruction=system_prompt,
+            ):
+                full_response += token
+                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+        except Exception:
+            yield f"data: {json.dumps({'type': 'error', 'content': 'AI temporarily unavailable. Please try again.'})}\n\n"
+            self.db.rollback()
+            return
+
+        if route_result["citations"]:
+            citations_text = "\n\n---\n📚 **Sources:**\n"
+            seen = set()
+            for c in route_result["citations"]:
+                key = (c["source"], c["title"])
+                if key not in seen:
+                    seen.add(key)
+                    url = f" ({c['url']})" if c.get("url") else ""
+                    citations_text += f"- {c['title']} — *{c['source']}*{url}\n"
+            full_response += citations_text
+            yield f"data: {json.dumps({'type': 'citations', 'content': citations_text})}\n\n"
+
+        assistant_msg = ChatMessage(
+            session_id=session_id, role="assistant", content=full_response
+        )
+        self.db.add(assistant_msg)
+
+        session = (
+            self.db.query(ChatSession)
+            .filter(ChatSession.id == session_id)
+            .first()
+        )
+        if session:
+            from sqlalchemy.sql import func
+            session.updated_at = func.now()
+
+        self.db.commit()
+        yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id})}\n\n"
 
     def _build_patient_summary(self, user_id: int) -> str:
         profile = (

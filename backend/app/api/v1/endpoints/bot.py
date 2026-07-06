@@ -10,11 +10,12 @@ class BotQuery(BaseModel):
     query: str
     top_k: int = 5
     collection: Optional[str] = None
+    use_reranker: bool = False
 
 
 @router.post("/ask")
 def bot_ask(body: BotQuery):
-    results = retriever.search(body.query, collection=body.collection, top_k=body.top_k, use_reranker=False, use_hybrid=True)
+    results = retriever.search(body.query, collection=body.collection, top_k=body.top_k, use_reranker=body.use_reranker, use_hybrid=True)
     return {
         "query": body.query,
         "total": len(results),

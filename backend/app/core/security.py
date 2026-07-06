@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -30,3 +32,15 @@ def decode_access_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+
+def generate_refresh_token() -> str:
+    return secrets.token_urlsafe(64)
+
+
+def hash_refresh_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def verify_refresh_token(raw_token: str, hashed: str) -> bool:
+    return hash_refresh_token(raw_token) == hashed

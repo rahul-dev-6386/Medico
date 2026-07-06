@@ -31,6 +31,7 @@ from app.api.v1.endpoints import (
     library,
     bot,
     drugs,
+    unified_rag,
 )
 
 try:
@@ -72,6 +73,7 @@ app.include_router(intelligence.router)
 app.include_router(library.router)
 app.include_router(bot.router)
 app.include_router(drugs.router)
+app.include_router(unified_rag.router)
 
 
 @app.on_event("startup")
@@ -82,6 +84,71 @@ def startup():
         print("Database tables created successfully")
     except Exception as e:
         print(f"Warning: Could not connect to database: {e}")
+
+    # Add verified column to users table if not exists (dev migration helper)
+    try:
+        from sqlalchemy import text as sa_text
+        with engine.connect() as conn:
+            conn.execute(sa_text("ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;"))
+            conn.execute(sa_text("ALTER TABLE users ALTER COLUMN verified SET DEFAULT FALSE;"))
+            conn.commit()
+            print("Migration: added 'verified' column to users table")
+    except Exception as e:
+        print(f"Warning: could not migrate users table: {e}")
+
+    # Auto-verify pre-existing accounts that have no EmailVerification records
+    try:
+        from app.core.database import SessionLocal
+        from app.models.user import User
+        from app.models.email_verification import EmailVerification
+        db = SessionLocal()
+        pre_existing = db.query(User).filter(
+            User.verified == False,
+            ~User.email.in_(
+                db.query(EmailVerification.email).filter(
+                    EmailVerification.verified == True
+                )
+            )
+        ).all()
+        for u in pre_existing:
+            u.verified = True
+            u.is_active = True
+        if pre_existing:
+            db.commit()
+            print(f"Migration: auto-verified {len(pre_existing)} pre-existing accounts")
+        db.close()
+    except Exception as e:
+        print(f"Warning: could not auto-verify pre-existing accounts: {e}")
+
+    # Schedule cleanup of expired OTP records (every 5 minutes)
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from datetime import datetime
+        from app.core.database import SessionLocal
+        from app.models.email_verification import EmailVerification
+
+        def cleanup_expired_otps():
+            try:
+                db = SessionLocal()
+                expired = db.query(EmailVerification).filter(
+                    EmailVerification.expires_at < datetime.utcnow(),
+                    EmailVerification.verified == False,
+                ).all()
+                for rec in expired:
+                    rec.verified = True
+                db.commit()
+                if expired:
+                    print(f"Cleaned up {len(expired)} expired OTP records")
+                db.close()
+            except Exception:
+                pass
+
+        scheduler = BackgroundScheduler()
+        scheduler.add_job(cleanup_expired_otps, "interval", minutes=5)
+        scheduler.start()
+        print("OTP cleanup scheduler started")
+    except Exception as e:
+        print(f"Warning: could not start OTP cleanup scheduler: {e}")
         print("The app will start but database operations will fail until the DB is available.")
 
     from app.infrastructure.vector_store import vector_store

@@ -10,6 +10,7 @@ from app.models.report_chunk import ReportChunk, LabValue
 from app.models.biomarker import BiomarkerTracking, TimelineEvent, AIInsight
 from app.ocr import ocr_manager
 from app.core.config import settings
+from app.core.queue import get_queue, get_connection
 from app.services.classification_service import classification_service
 from app.infrastructure.ai_provider_service import ai_provider
 from app.infrastructure.embedding_service import embedding_service
@@ -41,6 +42,7 @@ class ReportService:
             file_type=file.content_type or "application/octet-stream",
             file_path=file_path,
             original_filename=file.filename,
+            status="processing",
         )
         self.db.add(report)
         self.db.commit()
@@ -49,6 +51,8 @@ class ReportService:
         ocr_result = ocr_manager.extract_structured(file_bytes, file.content_type or "")
         extracted = ocr_result.get("raw_text", "")
         if not extracted:
+            report.status = "error"
+            report.error_message = "OCR returned no text"
             self.db.commit()
             return report
 
@@ -56,6 +60,7 @@ class ReportService:
 
         classification_result = classification_service.classify(extracted, file.filename)
         report.document_type = classification_result.get("document_type", "General Medical Report")
+        report.report_type = report.document_type
 
         structured = classification_service.extract_structured(extracted, report.document_type)
         report.structured_data = structured
@@ -96,6 +101,44 @@ class ReportService:
         self._store_in_vector_store(report.id, user_id, extracted, structured)
 
         return report
+
+    async def upload_async(self, user_id: int, file: UploadFile) -> MedicalReport:
+        file_bytes = await file.read()
+        file_ext = os.path.splitext(file.filename)[1]
+        file_id = str(uuid.uuid4())
+        file_name = f"{file_id}{file_ext}"
+
+        upload_dir = settings.UPLOAD_DIR
+        os.makedirs(upload_dir, exist_ok=True)
+        file_path = os.path.join(upload_dir, file_name)
+
+        with open(file_path, "wb") as f:
+            f.write(file_bytes)
+
+        report = MedicalReport(
+            user_id=user_id,
+            title=os.path.splitext(file.filename)[0],
+            file_type=file.content_type or "application/octet-stream",
+            file_path=file_path,
+            original_filename=file.filename,
+            status="processing",
+        )
+        self.db.add(report)
+        self.db.commit()
+        self.db.refresh(report)
+
+        from app.workers.report_worker import process_report
+        q = get_queue()
+        q.enqueue(process_report, report.id)
+
+        return report
+
+    def get_status(self, report_id: int, user_id: int) -> Optional[MedicalReport]:
+        return (
+            self.db.query(MedicalReport)
+            .filter(MedicalReport.id == report_id, MedicalReport.user_id == user_id)
+            .first()
+        )
 
     def _store_biomarkers(self, report_id: int, user_id: int, structured: dict):
         biomarkers = structured.get("biomarkers", [])

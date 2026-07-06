@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -77,6 +78,36 @@ def send_message(
 
     result = service.send_message(session_id, current_user.id, data.content)
     return result
+
+
+@router.post("/sessions/{session_id}/messages/stream")
+def send_message_stream(
+    session_id: int,
+    data: ChatMessageSend,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = ChatService(db)
+    session = (
+        db.query(ChatSession)
+        .filter(
+            ChatSession.id == session_id,
+            ChatSession.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    return StreamingResponse(
+        service.stream_response(session_id, current_user.id, data.content),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.delete("/sessions/{session_id}")

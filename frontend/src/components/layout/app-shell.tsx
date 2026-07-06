@@ -7,7 +7,7 @@ import { TopHeader } from "./top-header"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 
-const publicPaths = ["/login", "/register"]
+const publicPaths = ["/", "/login", "/register"]
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isPublic = publicPaths.includes(pathname)
 
   if (!mounted) {
-    return <div className="min-h-screen bg-[#090B10]">{children}</div>
+    return <div className="min-h-screen bg-[#0B0F1A]">{children}</div>
   }
 
   if (isPublic) {
@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#090B10]">
+    <div className="min-h-screen bg-[#0B0F1A]">
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
       <div
         className={cn(

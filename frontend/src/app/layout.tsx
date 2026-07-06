@@ -8,7 +8,7 @@ import { AppShell } from "@/components/layout/app-shell"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Medico",
+  title: "Sanjeevni AI",
   description: "AI-powered personal health assistant for a better you",
 }
 

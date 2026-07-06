@@ -6,7 +6,6 @@ import {
   Search,
   Bell,
   Command,
-  Sparkles,
   MessageSquare,
   Activity,
   Pill,
@@ -72,14 +71,7 @@ export function TopHeader() {
 
   return (
     <>
-      <header className="h-16 flex items-center justify-between px-6 border-b border-white/[0.06] bg-[#090B10]/80 backdrop-blur-xl">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#22C55E]/10 border border-[#22C55E]/20">
-            <Sparkles className="h-3.5 w-3.5 text-[#22C55E]" />
-            <span className="text-xs font-medium text-[#22C55E]">AI-Powered</span>
-          </div>
-        </div>
-
+      <header className="h-16 flex items-center justify-end px-6 border-b border-[#2B364A] bg-[#0B0F1A]/80 backdrop-blur-xl">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSearchOpen(true)}

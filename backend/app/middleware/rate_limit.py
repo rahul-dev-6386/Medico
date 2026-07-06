@@ -1,31 +1,28 @@
-from fastapi import Request, HTTPException, status
-import time
 from collections import defaultdict
+import time
+
+from fastapi import Request, HTTPException, status, Depends
+from typing import Callable
 
 
-class RateLimiter:
-    def __init__(self, max_requests: int = 60, window_seconds: int = 60):
-        self.max_requests = max_requests
-        self.window_seconds = window_seconds
-        self.requests: dict[str, list[float]] = defaultdict(list)
+def rate_limit(max_requests: int = 60, window_seconds: int = 60) -> Callable:
+    requests: dict[str, list[float]] = defaultdict(list)
 
-    async def __call__(self, request: Request):
+    async def limiter(request: Request):
         client_ip = request.client.host if request.client else "unknown"
         now = time.time()
-        window_start = now - self.window_seconds
+        window_start = now - window_seconds
 
-        self.requests[client_ip] = [
-            req_time for req_time in self.requests[client_ip]
-            if req_time > window_start
+        requests[client_ip] = [
+            t for t in requests[client_ip] if t > window_start
         ]
 
-        if len(self.requests[client_ip]) >= self.max_requests:
+        if len(requests[client_ip]) >= max_requests:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Rate limit exceeded. Try again later.",
             )
 
-        self.requests[client_ip].append(now)
+        requests[client_ip].append(now)
 
-
-rate_limiter = RateLimiter()
+    return Depends(limiter)

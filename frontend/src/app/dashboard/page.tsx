@@ -138,13 +138,13 @@ function EmptyDashboard({ userName }: { userName: string }) {
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="p-6 max-w-7xl mx-auto"
+      className="max-w-7xl mx-auto p-6"
     >
       <motion.div variants={itemVariants} className="text-center py-16">
         <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[#22C55E] to-emerald-600 flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-[#22C55E]/20">
           <HeartPulse className="h-10 w-10 text-white" />
         </div>
-        <h1 className="text-3xl font-bold text-[#F9FAFB] mb-3">Welcome to Medico, {userName}</h1>
+        <h1 className="text-3xl font-bold text-[#F9FAFB] mb-3">Welcome to Sanjeevni AI, {userName}</h1>
         <p className="text-[#94A3B8] max-w-lg mx-auto mb-10 text-lg leading-relaxed">
           Your AI-powered health companion. Start tracking your health metrics,<br />
           chatting with your AI assistant, or uploading medical reports.
@@ -156,7 +156,7 @@ function EmptyDashboard({ userName }: { userName: string }) {
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => router.push(action.href)}
-              className="inline-flex items-center gap-3 px-5 py-3 rounded-xl bg-[#111827] border border-white/[0.06] hover:border-white/[0.12] transition-all text-left group"
+              className="inline-flex items-center gap-3 px-5 py-3 rounded-xl bg-[#181E2E] border border-[#2B364A] hover:border-[#3B4A63] transition-all text-left group"
             >
               <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${action.gradient} flex items-center justify-center`}>
                 <action.icon className="h-5 w-5 text-white" />
@@ -172,7 +172,7 @@ function EmptyDashboard({ userName }: { userName: string }) {
       </motion.div>
 
       <motion.div variants={itemVariants} className="mt-8">
-        <div className="glass rounded-2xl p-6">
+        <div className="clinical-card">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="h-4 w-4 text-[#22C55E]" />
             <h3 className="text-sm font-semibold text-[#F9FAFB]">Try asking me</h3>
@@ -182,7 +182,7 @@ function EmptyDashboard({ userName }: { userName: string }) {
               <button
                 key={i}
                 onClick={() => router.push(`/chat?prompt=${encodeURIComponent(prompt)}`)}
-                className="text-left text-sm px-4 py-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/[0.1] transition-all text-[#94A3B8] hover:text-[#F9FAFB]"
+                className="text-left text-sm px-4 py-3 rounded-lg bg-[#181E2E] hover:bg-[#252F40] border border-[#2B364A] hover:border-[#3B4A63] transition-all text-[#94A3B8] hover:text-[#F9FAFB]"
               >
                 {prompt}
               </button>
@@ -260,286 +260,291 @@ export default function DashboardPage() {
   const hasPendingMeds = pendingMeds.length > 0
 
   return (
-    <div className="flex">
+    <div className="flex flex-1 min-h-0">
       <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className={cn("p-6 space-y-6", coachOpen ? "max-w-[calc(100vw-280px)]" : "max-w-7xl", "mx-auto flex-1")}
+        className="flex-1 min-w-0 p-6"
       >
-        {/* Top Section: Greeting + Health Score + Today */}
-        <button
-          onClick={() => setCoachOpen(!coachOpen)}
-          className="fixed right-4 top-20 z-50 w-9 h-9 rounded-xl bg-[#22C55E] text-white flex items-center justify-center shadow-lg hover:bg-emerald-600 transition-all"
-          title={coachOpen ? "Close AI Coach" : "Open AI Coach"}
-        >
-          <Lightbulb className="h-4 w-4" />
-        </button>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <motion.div variants={itemVariants} className="lg:col-span-2">
-            <div className="glass rounded-2xl p-6 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#22C55E]/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-            <div className="relative">
-              <div className="flex items-start justify-between mb-6">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <greeting.icon className="h-4 w-4 text-[#F59E0B]" />
-                    <span className="text-sm text-[#94A3B8]">{greeting.text}</span>
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Top Section: Greeting + Health Score + Today */}
+          <div className="flex items-center justify-end mb-2">
+            <button
+              onClick={() => setCoachOpen(!coachOpen)}
+              className="btn-clinical-ghost text-xs gap-1.5"
+            >
+              <Lightbulb className="h-3.5 w-3.5 text-amber-400" />
+              {coachOpen ? "Close Coach" : "AI Coach"}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <motion.div variants={itemVariants} className="lg:col-span-2">
+              <div className="clinical-card relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#22C55E]/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+              <div className="relative">
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <greeting.icon className="h-4 w-4 text-[#F59E0B]" />
+                      <span className="text-sm text-[#94A3B8]">{greeting.text}</span>
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-[#F9FAFB] tracking-tight">
+                      {firstName}
+                    </h1>
+                    <p className="text-[#94A3B8] text-sm mt-1">Here&apos;s your health summary</p>
                   </div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-[#F9FAFB] tracking-tight">
-                    {firstName}
-                  </h1>
-                  <p className="text-[#94A3B8] text-sm mt-1">Here&apos;s your health summary</p>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#22C55E]/10 border border-[#22C55E]/20 shrink-0">
+                    <Sparkles className="h-3.5 w-3.5 text-[#22C55E]" />
+                    <span className="text-xs font-medium text-[#22C55E]">Sanjeevni AI</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#22C55E]/10 border border-[#22C55E]/20 shrink-0">
-                  <Sparkles className="h-3.5 w-3.5 text-[#22C55E]" />
-                  <span className="text-xs font-medium text-[#22C55E]">Medico AI</span>
+
+                {latestMetrics && (
+                  <div className="bg-[#181E2E] rounded-xl p-4 border border-[#2B364A] mb-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Brain className="h-4 w-4 text-[#06B6D4]" />
+                      <span className="text-xs font-semibold text-[#06B6D4] uppercase tracking-wider">Daily Insight</span>
+                    </div>
+                    <p className="text-sm text-[#94A3B8] leading-relaxed">
+                      {latestMetrics.sleep_hours
+                        ? `You slept ${latestMetrics.sleep_hours}h last night. `
+                        : ""}
+                      {latestMetrics.water_ml
+                        ? `Hydration at ${Math.round((latestMetrics.water_ml / 2000) * 100)}% of goal. `
+                        : ""}
+                      {latestMetrics.mood
+                        ? `Mood score: ${latestMetrics.mood}/10. `
+                        : ""}
+                      {!latestMetrics.sleep_hours && !latestMetrics.water_ml && !latestMetrics.mood
+                        ? "Log your first metrics to see personalised insights."
+                        : "Keep up the great work!"}
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {quickActions.map((action) => (
+                    <motion.button
+                      key={action.href}
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => router.push(action.href)}
+                      className="clinical-card-hover !p-3 text-center group"
+                    >
+                      <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${action.gradient} flex items-center justify-center mx-auto mb-2 shadow-lg`}>
+                        <action.icon className="h-4.5 w-4.5 text-white" />
+                      </div>
+                      <p className="text-xs font-medium text-[#F9FAFB]">{action.label}</p>
+                      <p className="text-[10px] text-[#94A3B8] mt-0.5">{action.desc}</p>
+                    </motion.button>
+                  ))}
                 </div>
               </div>
+            </div>
+          </motion.div>
 
-              {latestMetrics && (
-                <div className="bg-white/[0.03] rounded-xl p-4 border border-white/[0.06] mb-5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Brain className="h-4 w-4 text-[#06B6D4]" />
-                    <span className="text-xs font-semibold text-[#06B6D4] uppercase tracking-wider">Daily Insight</span>
-                  </div>
-                  <p className="text-sm text-[#94A3B8] leading-relaxed">
-                    {latestMetrics.sleep_hours
-                      ? `You slept ${latestMetrics.sleep_hours}h last night. `
-                      : ""}
-                    {latestMetrics.water_ml
-                      ? `Hydration at ${Math.round((latestMetrics.water_ml / 2000) * 100)}% of goal. `
-                      : ""}
-                    {latestMetrics.mood
-                      ? `Mood score: ${latestMetrics.mood}/10. `
-                      : ""}
-                    {!latestMetrics.sleep_hours && !latestMetrics.water_ml && !latestMetrics.mood
-                      ? "Log your first metrics to see personalised insights."
-                      : "Keep up the great work!"}
-                  </p>
+          <motion.div variants={itemVariants}>
+            <div className="clinical-card h-full flex flex-col items-center justify-center">
+              <div className="relative mb-4">
+                <svg width="160" height="160" className="transform -rotate-90">
+                  <circle cx="80" cy="80" r="68" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="8" />
+                  {overallScore != null && (
+                    <motion.circle
+                      cx="80" cy="80" r="68" fill="none" stroke="#22C55E" strokeWidth="8" strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 68}
+                      initial={{ strokeDashoffset: 2 * Math.PI * 68 }}
+                      animate={{ strokeDashoffset: 2 * Math.PI * 68 * (1 - overallScore / 100) }}
+                      transition={{ duration: 1.5, ease: "easeOut" }}
+                      style={{ filter: "drop-shadow(0 0 12px rgba(34,197,94,0.3))" }}
+                    />
+                  )}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  {overallScore != null ? (
+                    <>
+                      <span className="text-4xl font-bold text-[#F9FAFB]">
+                        <AnimatedCounter value={overallScore} />
+                      </span>
+                      <span className="text-xs text-[#94A3B8] mt-1">Health Score</span>
+                    </>
+                  ) : (
+                    <>
+                      <Activity className="h-10 w-10 text-[#94A3B8]/40" />
+                      <span className="text-xs text-[#94A3B8] mt-2">No data yet</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              {overallScore != null && (
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${risk.color.replace("text-", "bg-")}`} />
+                  <span className={`text-sm font-medium ${risk.color}`}>{risk.label}</span>
                 </div>
               )}
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {quickActions.map((action) => (
-                  <motion.button
-                    key={action.href}
-                    whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => router.push(action.href)}
-                    className="glass rounded-xl p-3 text-center hover:border-white/[0.12] transition-all group"
-                  >
-                    <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${action.gradient} flex items-center justify-center mx-auto mb-2 shadow-lg`}>
-                      <action.icon className="h-4.5 w-4.5 text-white" />
-                    </div>
-                    <p className="text-xs font-medium text-[#F9FAFB]">{action.label}</p>
-                    <p className="text-[10px] text-[#94A3B8] mt-0.5">{action.desc}</p>
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div variants={itemVariants}>
-          <div className="glass rounded-2xl p-6 h-full flex flex-col items-center justify-center">
-            <div className="relative mb-4">
-              <svg width="160" height="160" className="transform -rotate-90">
-                <circle cx="80" cy="80" r="68" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="8" />
-                {overallScore != null && (
-                  <motion.circle
-                    cx="80" cy="80" r="68" fill="none" stroke="#22C55E" strokeWidth="8" strokeLinecap="round"
-                    strokeDasharray={2 * Math.PI * 68}
-                    initial={{ strokeDashoffset: 2 * Math.PI * 68 }}
-                    animate={{ strokeDashoffset: 2 * Math.PI * 68 * (1 - overallScore / 100) }}
-                    transition={{ duration: 1.5, ease: "easeOut" }}
-                    style={{ filter: "drop-shadow(0 0 12px rgba(34,197,94,0.3))" }}
-                  />
-                )}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                {overallScore != null ? (
-                  <>
-                    <span className="text-4xl font-bold text-[#F9FAFB]">
-                      <AnimatedCounter value={overallScore} />
-                    </span>
-                    <span className="text-xs text-[#94A3B8] mt-1">Health Score</span>
-                  </>
-                ) : (
-                  <>
-                    <Activity className="h-10 w-10 text-[#94A3B8]/40" />
-                    <span className="text-xs text-[#94A3B8] mt-2">No data yet</span>
-                  </>
-                )}
-              </div>
-            </div>
-            {overallScore != null && (
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${risk.color.replace("text-", "bg-")}`} />
-                <span className={`text-sm font-medium ${risk.color}`}>{risk.label}</span>
-              </div>
-            )}
-            <button
-              onClick={() => router.push("/chat")}
-              className="btn-secondary mt-4 w-full text-xs"
-            >
-              <Bot className="h-3.5 w-3.5" />
-              AI Health Consultation
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Health Metrics Rings */}
-      {metricValues.length > 0 && (
-        <motion.div
-          variants={itemVariants}
-          className="glass rounded-2xl p-6"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-sm font-semibold text-[#F9FAFB]">Today&apos;s Metrics</h3>
-            <button onClick={() => router.push("/metrics")} className="btn-ghost text-xs">
-              View All <ChevronRight className="h-3 w-3" />
-            </button>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-            {metricValues.map((m, i) => (
-              <div key={i} className="relative flex flex-col items-center">
-                <MetricRing value={m.value} max={m.max} label={m.label} icon={m.icon} color={m.color} />
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Middle Section: AI Insights + Medications + Reports */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* AI Insights */}
-        <motion.div variants={itemVariants} className="lg:col-span-2">
-          <div className="glass rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-[#F9FAFB] flex items-center gap-2">
-                <Brain className="h-4 w-4 text-[#22C55E]" />
-                AI Insights
-              </h3>
-              <button onClick={() => router.push("/chat")} className="btn-ghost text-xs gap-1">
-                Chat <MessageSquare className="h-3 w-3" />
+              <button
+                onClick={() => router.push("/chat")}
+                className="btn-clinical-secondary mt-4 w-full text-xs"
+              >
+                <Bot className="h-3.5 w-3.5" />
+                AI Health Consultation
+                <ArrowUpRight className="h-3.5 w-3.5" />
               </button>
             </div>
-            {recommendations.length > 0 ? (
-              <div className="space-y-3">
-                {recommendations.slice(0, 4).map((rec: any, i: number) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-[#22C55E]/10 flex items-center justify-center shrink-0">
-                      <Zap className="h-4 w-4 text-[#22C55E]" />
-                    </div>
-                    <p className="text-sm text-[#94A3B8] leading-relaxed">{rec.message || rec}</p>
-                  </motion.div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <div className="w-12 h-12 rounded-xl bg-white/[0.04] flex items-center justify-center mx-auto mb-3">
-                  <Brain className="h-6 w-6 text-[#94A3B8]/40" />
-                </div>
-                <p className="text-sm text-[#94A3B8]">Log more data to see AI insights</p>
-              </div>
-            )}
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
 
-        {/* Right Column: Pending Meds + Latest Reports */}
-        <motion.div variants={itemVariants} className="space-y-4">
-          {hasPendingMeds && (
-            <div className="glass rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Pill className="h-4 w-4 text-[#F59E0B]" />
-                <h3 className="text-sm font-semibold text-[#F9FAFB]">Medications Due</h3>
-              </div>
-              <div className="space-y-2">
-                {pendingMeds.slice(0, 3).map((med: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.03]">
-                    <div>
-                      <p className="text-sm font-medium text-[#F9FAFB]">{med.name}</p>
-                      <p className="text-xs text-[#94A3B8]">{med.dosage} • {med.frequency}</p>
-                    </div>
-                    <span className="badge-amber text-[10px]">Pending</span>
-                  </div>
-                ))}
-              </div>
-              <button onClick={() => router.push("/medications")} className="btn-ghost w-full text-xs mt-2">
+        {/* Health Metrics Rings */}
+        {metricValues.length > 0 && (
+          <motion.div
+            variants={itemVariants}
+            className="clinical-card"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-sm font-semibold text-[#F9FAFB]">Today&apos;s Metrics</h3>
+              <button onClick={() => router.push("/metrics")} className="btn-clinical-ghost text-xs">
                 View All <ChevronRight className="h-3 w-3" />
               </button>
             </div>
-          )}
-
-          {reports.length > 0 && (
-            <div className="glass rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <FileText className="h-4 w-4 text-[#06B6D4]" />
-                <h3 className="text-sm font-semibold text-[#F9FAFB]">Latest Reports</h3>
-              </div>
-              <div className="space-y-2">
-                {reports.slice(0, 3).map((r: any, i: number) => (
-                  <button
-                    key={i}
-                    onClick={() => router.push(`/reports/${r.id}`)}
-                    className="w-full text-left p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] transition-colors"
-                  >
-                    <p className="text-sm font-medium text-[#F9FAFB] truncate">{r.title || r.original_filename}</p>
-                    <p className="text-xs text-[#94A3B8]">{r.uploaded_at ? new Date(r.uploaded_at).toLocaleDateString() : ""}</p>
-                  </button>
-                ))}
-              </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+              {metricValues.map((m, i) => (
+                <div key={i} className="relative flex flex-col items-center">
+                  <MetricRing value={m.value} max={m.max} label={m.label} icon={m.icon} color={m.color} />
+                </div>
+              ))}
             </div>
-          )}
+          </motion.div>
+        )}
+
+        {/* Middle Section: AI Insights + Medications + Reports */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* AI Insights */}
+          <motion.div variants={itemVariants} className="lg:col-span-2">
+            <div className="clinical-card">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-[#F9FAFB] flex items-center gap-2">
+                  <Brain className="h-4 w-4 text-[#22C55E]" />
+                  AI Insights
+                </h3>
+                <button onClick={() => router.push("/chat")} className="btn-clinical-ghost text-xs gap-1">
+                  Chat <MessageSquare className="h-3 w-3" />
+                </button>
+              </div>
+              {recommendations.length > 0 ? (
+                <div className="space-y-3">
+                  {recommendations.slice(0, 4).map((rec: any, i: number) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      className="flex items-start gap-3 p-3 rounded-lg bg-[#181E2E] hover:bg-[#252F40] transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-[#22C55E]/10 flex items-center justify-center shrink-0">
+                        <Zap className="h-4 w-4 text-[#22C55E]" />
+                      </div>
+                      <p className="text-sm text-[#94A3B8] leading-relaxed">{rec.message || rec}</p>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 rounded-xl bg-[#181E2E] flex items-center justify-center mx-auto mb-3">
+                    <Brain className="h-6 w-6 text-[#94A3B8]/40" />
+                  </div>
+                  <p className="text-sm text-[#94A3B8]">Log more data to see AI insights</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+
+          {/* Right Column: Pending Meds + Latest Reports */}
+          <motion.div variants={itemVariants} className="space-y-4">
+            {hasPendingMeds && (
+              <div className="clinical-card !p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Pill className="h-4 w-4 text-[#F59E0B]" />
+                  <h3 className="text-sm font-semibold text-[#F9FAFB]">Medications Due</h3>
+                </div>
+                <div className="space-y-2">
+                  {pendingMeds.slice(0, 3).map((med: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-[#181E2E]">
+                      <div>
+                        <p className="text-sm font-medium text-[#F9FAFB]">{med.name}</p>
+                        <p className="text-xs text-[#94A3B8]">{med.dosage} • {med.frequency}</p>
+                      </div>
+                      <span className="medical-badge-amber text-[10px]">Pending</span>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => router.push("/medications")} className="btn-clinical-ghost w-full text-xs mt-2">
+                  View All <ChevronRight className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+
+            {reports.length > 0 && (
+              <div className="clinical-card !p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText className="h-4 w-4 text-[#06B6D4]" />
+                  <h3 className="text-sm font-semibold text-[#F9FAFB]">Latest Reports</h3>
+                </div>
+                <div className="space-y-2">
+                  {reports.slice(0, 3).map((r: any, i: number) => (
+                    <button
+                      key={i}
+                      onClick={() => router.push(`/reports/${r.id}`)}
+                      className="w-full text-left p-2.5 rounded-lg bg-[#181E2E] hover:bg-[#252F40] transition-colors"
+                    >
+                      <p className="text-sm font-medium text-[#F9FAFB] truncate">{r.title || r.original_filename}</p>
+                      <p className="text-xs text-[#94A3B8]">{r.uploaded_at ? new Date(r.uploaded_at).toLocaleDateString() : ""}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </div>
+
+        {/* Bottom: AI Health Coach Card */}
+        <motion.div variants={itemVariants}>
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#22C55E]/10 via-[#06B6D4]/5 to-[#181E2E] border border-[#22C55E]/20 p-6 sm:p-8">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-[#22C55E]/10 rounded-full blur-3xl" />
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-6">
+              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-[#22C55E] to-emerald-600 flex items-center justify-center shadow-2xl shadow-[#22C55E]/30 shrink-0">
+                <Bot className="h-8 w-8 text-white" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-[#F9FAFB] mb-1">AI Health Consultation</h2>
+                <p className="text-sm text-[#94A3B8] mb-4">
+                  Get instant answers about your health. Ask about symptoms, medications, lab results, or anything else.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {suggestedPrompts.map((prompt, i) => (
+                    <button
+                      key={i}
+                      onClick={() => router.push(`/chat?prompt=${encodeURIComponent(prompt)}`)}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-[#181E2E] hover:bg-[#252F40] border border-[#2B364A] text-[#94A3B8] hover:text-[#F9FAFB] transition-all"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={() => router.push("/chat")}
+                className="btn-clinical shrink-0"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Start Chat
+              </button>
+            </div>
+          </div>
         </motion.div>
       </div>
-
-      {/* Bottom: AI Health Coach Card */}
-      <motion.div variants={itemVariants}>
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#22C55E]/10 via-[#06B6D4]/5 to-[#111827] border border-[#22C55E]/20 p-6 sm:p-8">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-[#22C55E]/10 rounded-full blur-3xl" />
-          <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#22C55E] to-emerald-600 flex items-center justify-center shadow-2xl shadow-[#22C55E]/30 shrink-0">
-              <Bot className="h-8 w-8 text-white" />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-[#F9FAFB] mb-1">AI Health Consultation</h2>
-              <p className="text-sm text-[#94A3B8] mb-4">
-                Get instant answers about your health. Ask about symptoms, medications, lab results, or anything else.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {suggestedPrompts.map((prompt, i) => (
-                  <button
-                    key={i}
-                    onClick={() => router.push(`/chat?prompt=${encodeURIComponent(prompt)}`)}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.06] text-[#94A3B8] hover:text-[#F9FAFB] transition-all"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button
-              onClick={() => router.push("/chat")}
-              className="btn-primary shrink-0"
-            >
-              <MessageSquare className="h-4 w-4" />
-              Start Chat
-            </button>
-          </div>
-        </div>
       </motion.div>
-    </motion.div>
-    <HealthCoachSidebar open={coachOpen} onToggle={() => setCoachOpen(false)} />
+      <HealthCoachSidebar open={coachOpen} onToggle={() => setCoachOpen(false)} />
     </div>
   )
 }

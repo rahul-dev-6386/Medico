@@ -5,6 +5,8 @@ import { GlassCard } from "@/components/ui/glass-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { apiFetch } from "@/lib/utils"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   BookOpen, Send, Search, FlaskConical, Pill, Stethoscope,
@@ -149,20 +151,11 @@ export default function BotPage() {
                           </span>
                           <span className="text-xs text-muted-foreground">·</span>
                           <span className="text-xs text-muted-foreground">{r.book}</span>
-                          {r.chapter && (
-                            <>
-                              <span className="text-xs text-muted-foreground">·</span>
-                              <span className="text-xs text-muted-foreground">{r.chapter}</span>
-                            </>
-                          )}
                         </div>
-                        {r.section && (
-                          <p className="text-xs text-muted-foreground mb-1">{r.section}</p>
-                        )}
-                        <p className="text-sm leading-relaxed mb-2">{r.text}</p>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          {r.page && <span>p. {r.page}</span>}
-                          <span>Score: {(r.score * 100).toFixed(1)}%</span>
+                        <div className="prose prose-invert prose-sm max-w-none mb-2">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {r.text}
+                          </ReactMarkdown>
                         </div>
                       </div>
                     </div>

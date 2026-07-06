@@ -10,6 +10,7 @@ from rank_bm25 import BM25Okapi
 from app.domain.medical_library.embedder import embed_query
 from app.domain.medical_library import indexer
 from app.domain.medical_library.reranker import rerank
+from app.domain.medical_library.query_expander import expand_query
 
 logger = logging.getLogger("medical_library")
 logger.setLevel(logging.INFO)
@@ -261,6 +262,7 @@ def search(
     use_hybrid: bool = True,
     use_reranker: bool = False,
 ) -> list[dict]:
+    query = expand_query(query)
     if use_hybrid:
         results = hybrid_search(query, collection, final_top_k=50 if use_reranker else top_k)
     else:

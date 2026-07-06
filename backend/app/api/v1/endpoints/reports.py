@@ -4,19 +4,19 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.middleware.auth_middleware import get_current_user
 from app.models.user import User
-from app.schemas.report import MedicalReportResponse
+from app.schemas.report import MedicalReportResponse, UploadStatusResponse
 from app.services.report_service import ReportService
 from app.ocr import ocr_manager
 
 router = APIRouter(prefix="/api/reports", tags=["Medical Reports"])
 
 
-@router.post("/upload", response_model=MedicalReportResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_report(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> UploadStatusResponse:
     allowed_types = {
         "application/pdf",
         "image/jpeg",
@@ -30,8 +30,21 @@ async def upload_report(
         )
 
     service = ReportService(db)
-    report = await service.upload(current_user.id, file)
-    return report
+    report = await service.upload_async(current_user.id, file)
+    return UploadStatusResponse(report_id=report.id, status=report.status)
+
+
+@router.get("/{report_id}/status", response_model=UploadStatusResponse)
+def get_report_status(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = ReportService(db)
+    report = service.get_status(report_id, current_user.id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+    return UploadStatusResponse(report_id=report.id, status=report.status, error_message=report.error_message)
 
 
 @router.post("/ocr", status_code=status.HTTP_200_OK)

@@ -16,6 +16,7 @@ from app.infrastructure.pubmed_service import PubMedService
 from app.services.drug_service import DrugService
 from app.services.report_intelligence_service import ReportIntelligenceService
 from app.services.citation_engine import CitationEngine
+from app.services.context_fusion_service import ContextFusionService
 from app.infrastructure.ai_provider_service import ai_provider
 from app.infrastructure.vector_store import vector_store
 from app.infrastructure.embedding_service import embedding_service
@@ -96,7 +97,7 @@ class QueryRouter:
 
         return IntentType.GENERAL_MEDICAL
 
-    def route(self, query: str, user_id: int) -> dict:
+    def route(self, query: str, user_id: int, use_reranker: bool = False) -> dict:
         intent = self.classify_intent(query)
         citations = CitationEngine()
 
@@ -131,7 +132,7 @@ class QueryRouter:
         if intent == IntentType.MULTI_SOURCE:
             return self._handle_multi_source(query, user_id, citations)
 
-        return self._handle_general_medical(query, user_id, citations)
+        return self._handle_general_medical(query, user_id, citations, use_reranker)
 
     def _handle_patient_history(self, user_id: int, citations: CitationEngine) -> dict:
         profile = (
@@ -346,7 +347,7 @@ class QueryRouter:
             "citations": citations.to_dict_list(),
         }
 
-    def _handle_general_medical(self, query: str, user_id: int, citations: CitationEngine) -> dict:
+    def _handle_general_medical(self, query: str, user_id: int, citations: CitationEngine, use_reranker: bool = False) -> dict:
         knowledge_results = self.knowledge_service.search(query, top_k=5)
         for kr in knowledge_results:
             citations.add_guideline(kr.get("specialty", "medical"), kr["title"], kr.get("url"))
@@ -355,13 +356,14 @@ class QueryRouter:
         for pr in pubmed_results:
             citations.add_pubmed(pr["title"], pr["pmid"], pr.get("journal"))
 
-        library_results = library_retriever.search(query, top_k=8)
-        for lr in library_results:
-            citations.add_guideline(
-                lr.get("collection", "medical_library"),
-                f"{lr.get('source_book', '')} / {lr.get('chapter', '')}",
-                None,
-            )
+        # Use ContextFusionService for unified textbook + user report retrieval
+        fusion = ContextFusionService(self.db)
+        fusion_result = fusion.retrieve(
+            query=query,
+            user_id=user_id,
+            top_k_textbooks=8,
+            top_k_user=5,
+        )
 
         context_parts = []
         used_books = set()
@@ -378,42 +380,19 @@ class QueryRouter:
                 if text:
                     context_parts.append(text[:1000])
 
-        if library_results:
-            for lr in library_results:
-                text = lr.get("text", "").strip()
-                book = lr.get("source_book", "")
+        for ctx in fusion_result.contexts:
+            if ctx["source"] == "user_report_chunks":
+                text = ctx.get("content", "").strip()
+                if text:
+                    context_parts.append(f"[User's Medical Data] {text[:1000]}")
+                    citations.add_report_finding(f"Report #{ctx.get('report_id', '?')}", None)
+            elif ctx["source"] in ("textbook", "textbook_library"):
+                text = ctx.get("content", "").strip()
+                book = ctx.get("title", "")
                 if book:
                     used_books.add(book)
                 if text:
                     context_parts.append(text[:1000])
-
-        report_texts = []
-        try:
-            query_emb = embedding_service.embed(query)
-            report_results = vector_store.search(
-                query_emb,
-                top_k=5,
-                payload_filter={"type": "report", "user_id": user_id},
-            )
-            for rr in report_results:
-                payload = rr["payload"]
-                chunk = (
-                    self.db.query(ReportChunk)
-                    .filter(
-                        ReportChunk.report_id == payload["report_id"],
-                        ReportChunk.chunk_index == payload["chunk_index"],
-                    )
-                    .first()
-                )
-                if chunk and chunk.content.strip():
-                    report_texts.append(chunk.content)
-                    citations.add_report_finding(
-                        f"Report #{payload['report_id']}", None
-                    )
-            if report_texts:
-                context_parts.extend(rt[:1000] for rt in report_texts[:3])
-        except Exception as e:
-            logger.warning(f"Could not search user reports: {e}")
 
         if not context_parts:
             return {
@@ -433,25 +412,48 @@ class QueryRouter:
         context = "\n\n".join(deduped)
 
         system_prompt = (
-            "You are Medico AI. You are an evidence-based medical assistant.\n\n"
+            "You are **Medico AI**. You are an evidence-based medical assistant.\n\n"
             "You have access to trusted medical knowledge including Harrison's, Merck Manual, "
             "Oxford Handbook, Davidson, Goodman & Gilman, Current Medical Diagnosis & Treatment, "
             "and other medical references.\n\n"
+            "You also have access to the user's own medical reports and health data.\n"
+            "Priority order: Use the user's own medical data first, then textbooks.\n\n"
             "Use these references only to verify your answers.\n"
             "Never mention the retrieval process.\n"
-            "Never mention textbooks unless citing them briefly at the end.\n"
+            "Never mention textbooks unless citing them in the references section.\n"
             "Never mention missing definitions. Interpret common patient language naturally.\n\n"
             "Always answer like an experienced physician. Never answer like a textbook.\n"
             "Never dump retrieved passages. Never quote multiple books separately.\n"
             "Summarize everything. If multiple sources agree, merge into one concise explanation.\n\n"
-            "For symptom questions, structure your response as:\n"
-            "- Brief summary\n"
-            "- Most likely causes\n"
-            "- Less common but serious causes\n"
-            "- Home care advice (when appropriate)\n"
-            "- Red flag symptoms requiring urgent medical attention\n"
-            "- Follow-up questions to narrow the diagnosis\n\n"
-            "If the question is vague, ask targeted follow-up questions instead of listing dozens of possibilities."
+            "## Formatting Rules\n\n"
+            "Never return large paragraphs. Always use:\n"
+            "- `# Main heading` at the top\n"
+            "- `## Sections` with relevant emoji (use sparingly)\n"
+            "- `### Subsections` when needed\n"
+            "- Bullet lists and numbered lists\n"
+            "- Markdown tables when comparing values\n"
+            "- Blockquotes (`>`) for important notes or red flags\n"
+            "- **Bold** for diseases, medications, and laboratory tests\n"
+            "- Emojis sparingly (only: 🩺📊⚠️✅🚨💬📚) to improve scanning\n\n"
+            "Keep answers visually structured. The user should understand the answer within 10 seconds.\n\n"
+            "Use this template for general medical answers:\n"
+            "- `# Short Answer` — 2-3 sentence explanation\n"
+            "- `## 🩺 What It Means` — explain simply\n"
+            "- `## 📊 Key Findings` — bullet list\n"
+            "- `## 📋 Interpretation` — table when possible\n"
+            "- `## ⚠️ Possible Causes` — grouped Common / Less Common\n"
+            "- `## ✅ What You Can Do` — actionable advice\n"
+            "- `## 🚨 Seek Medical Care Immediately If` — bullet list\n"
+            "- `## 💬 If You Have Your Results` — ask for specific values\n"
+            "- `## 📚 References` — sources used\n\n"
+            "For symptom questions, use this template instead:\n"
+            "- `# Short Answer` — 2-3 sentence summary\n"
+            "- `## 🩺 What It Means` — explain in plain language\n"
+            "- `## ⚠️ Possible Causes` — grouped into Common / Less Common\n"
+            "- `## ✅ Home Care` — practical self-care advice\n"
+            "- `## 🚨 Red Flags` — symptoms requiring urgent medical attention\n"
+            "- `## 💬 Questions to Narrow the Diagnosis` — targeted follow-ups\n"
+            "- `## 📚 References`"
         )
 
         user_prompt = (
@@ -468,7 +470,7 @@ class QueryRouter:
 
         # Append references
         if used_books:
-            refs = "\n\nReferences\n" + "\n".join(f"\u2022 {b}" for b in sorted(used_books))
+            refs = "\n\n## 📚 References\n" + "\n".join(f"- {b}" for b in sorted(used_books))
             response += refs
 
         return {

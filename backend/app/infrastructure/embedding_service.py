@@ -1,15 +1,13 @@
 import hashlib
 import json
+import logging
 import os
-import time
 from typing import Optional
 
-import google.generativeai as genai
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-
 from app.core.config import settings
+from app.infrastructure.embedding_provider import get_embedding_provider
 
-genai.configure(api_key=settings.GEMINI_API_KEY)
+logger = logging.getLogger("embedding_service")
 
 
 class EmbeddingCache:
@@ -38,86 +36,45 @@ class EmbeddingCache:
 
 class EmbeddingService:
     def __init__(self):
-        self.model = settings.EMBEDDING_MODEL
-        self.dimension = settings.EMBEDDING_DIMENSION
-        self.batch_size = settings.MAX_EMBEDDING_BATCH
+        self.provider = get_embedding_provider()
+        self.dimension = self.provider.dimensions
         self.cache = EmbeddingCache()
-        self._rate_limit_remaining = 1500
-        self._rate_limit_reset = time.time() + 60
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        retry=retry_if_exception_type(Exception),
-    )
     def embed(self, text: str) -> list[float]:
         cached = self.cache.get(text)
         if cached:
             return cached
-
-        self._check_rate_limit()
-        result = genai.embed_content(model=self.model, content=text)
-        embedding = result["embedding"]
+        embedding = self.provider.embed(text)
         self.cache.set(text, embedding)
         return embedding
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         results = []
-        uncached_texts = []
-        uncached_indices = []
-
+        uncached = []
+        indices = []
         for i, text in enumerate(texts):
             cached = self.cache.get(text)
             if cached:
                 results.append(cached)
             else:
                 results.append(None)
-                uncached_texts.append(text)
-                uncached_indices.append(i)
-
-        for start in range(0, len(uncached_texts), self.batch_size):
-            batch = uncached_texts[start:start + self.batch_size]
-            self._check_rate_limit()
-            try:
-                batch_result = genai.embed_content(
-                    model=self.model,
-                    content=batch,
-                )
-                embeddings = batch_result["embedding"]
-                for j, emb in enumerate(embeddings):
-                    idx = uncached_indices[start + j]
-                    results[idx] = emb
-                    self.cache.set(batch[j], emb)
-            except Exception:
-                for j, text in enumerate(batch):
-                    idx = uncached_indices[start + j]
-                    try:
-                        emb = self.embed(text)
-                        results[idx] = emb
-                    except Exception:
-                        results[idx] = [0.0] * self.dimension
-
+                uncached.append(text)
+                indices.append(i)
+        if uncached:
+            embeddings = self.provider.embed_batch(uncached)
+            for idx, text, emb in zip(indices, uncached, embeddings):
+                results[idx] = emb
+                self.cache.set(text, emb)
         return results
 
-    def _check_rate_limit(self):
-        now = time.time()
-        if now > self._rate_limit_reset:
-            self._rate_limit_remaining = 1500
-            self._rate_limit_reset = now + 60
-        if self._rate_limit_remaining <= 0:
-            sleep_time = self._rate_limit_reset - now
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-            self._rate_limit_remaining = 1500
-            self._rate_limit_reset = time.time() + 60
-        self._rate_limit_remaining -= 1
-
     def embed_document(self, text: str) -> dict:
+        embedding = self.embed(text)
         return {
-            "embedding": self.embed(text),
+            "embedding": embedding,
             "dimension": self.dimension,
-            "model": self.model,
+            "model": self.provider.model_name,
         }
 
 
+logger.info(f"Embedding service ready (provider={get_embedding_provider().model_name})")
 embedding_service = EmbeddingService()

@@ -470,11 +470,12 @@ def get_risk_predictions(
 @router.post("/query")
 def intelligent_query(
     query: str,
+    use_reranker: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     router = QueryRouter(db)
-    return router.route(query, current_user.id)
+    return router.route(query, current_user.id, use_reranker=use_reranker)
 
 
 @router.get("/vector-store-status")

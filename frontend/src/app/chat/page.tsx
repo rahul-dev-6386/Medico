@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { apiFetch, cn } from "@/lib/utils"
+import { apiFetch, cn, API_URL, getAuthHeaders } from "@/lib/utils"
 import { useVoiceRecorder } from "@/lib/use-voice-recorder"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Bot, Send, Sparkles, MessageSquare, Plus, Trash2,
@@ -46,7 +48,7 @@ function TypingIndicator() {
           <div className="typing-dot" />
           <div className="typing-dot" />
         </div>
-        <span className="text-xs text-[#94A3B8]">Medico is thinking...</span>
+        <span className="text-xs text-[#94A3B8]">Sanjeevni AI is thinking...</span>
       </div>
     </div>
   )
@@ -81,8 +83,15 @@ function ChatMessage({ message, onCopy, onRegenerate }: { message: Message; onCo
               ? "chat-bubble-user"
               : "chat-bubble-assistant"
           )}
-          dangerouslySetInnerHTML={{ __html: message.content.replace(/\n/g, "<br/>") }}
-        />
+        >
+          {message.role === "assistant" && message.content ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message.content}
+            </ReactMarkdown>
+          ) : (
+            message.content
+          )}
+        </div>
         {message.role === "assistant" && (
           <div className="flex items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity px-1">
             <button onClick={handleCopy} className="btn-icon !p-1" title="Copy">
@@ -144,13 +153,13 @@ export default function ChatPage() {
     if (!message || loading) return
 
     setInput("")
-    const userMsg: Message = { role: "user", content: message, id: Date.now().toString() }
+    const userMsg: Message = { role: "user", content: message, id: `user-${Date.now()}` }
     setMessages((prev) => [...prev, userMsg])
     setLoading(true)
 
-    try {
-      let sessionId = activeSession
-      if (!sessionId) {
+    let sessionId = activeSession
+    if (!sessionId) {
+      try {
         const session = await apiFetch("/chat/sessions", {
           method: "POST",
           body: JSON.stringify({ title: message.slice(0, 50) }),
@@ -158,24 +167,78 @@ export default function ChatPage() {
         sessionId = session.id
         setActiveSession(sessionId)
         setSessions((prev) => [session, ...prev])
+      } catch {
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: "I'm having trouble connecting. Please try again.",
+          id: `error-${Date.now()}`,
+        }])
+        setLoading(false)
+        return
       }
+    }
 
-      const data = await apiFetch(`/chat/sessions/${sessionId}/messages`, {
+    const assistantId = `assistant-${Date.now()}`
+    setMessages((prev) => [...prev, { role: "assistant", content: "", id: assistantId }])
+
+    try {
+      const response = await fetch(`${API_URL}/chat/sessions/${sessionId}/messages/stream`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify({ content: message }),
       })
-      const assistantMsg: Message = {
-        role: "assistant",
-        content: data.response || data.message || data.content || "I'm here to help with your health questions.",
-        id: (Date.now() + 1).toString(),
+
+      if (!response.ok) throw new Error("Stream failed")
+
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error("No reader")
+
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() || ""
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue
+          try {
+            const data = JSON.parse(line.slice(6))
+            if (data.type === "token") {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantId
+                    ? { ...msg, content: msg.content + data.content }
+                    : msg
+                )
+              )
+            } else if (data.type === "error") {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantId ? { ...msg, content: data.content } : msg
+                )
+              )
+            }
+          } catch {
+            // skip malformed JSON
+          }
+        }
       }
-      setMessages((prev) => [...prev, assistantMsg])
     } catch {
-      setMessages((prev) => [...prev, {
-        role: "assistant",
-        content: "I'm having trouble connecting. Please try again.",
-        id: (Date.now() + 1).toString(),
-      }])
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantId && !msg.content
+            ? { ...msg, content: "I'm having trouble connecting. Please try again." }
+            : msg
+        )
+      )
     } finally {
       setLoading(false)
     }
@@ -309,7 +372,7 @@ export default function ChatPage() {
           </button>
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#22C55E]/10 border border-[#22C55E]/20">
             <Sparkles className="h-3 w-3 text-[#22C55E]" />
-            <span className="text-xs font-medium text-[#22C55E]">Medico</span>
+            <span className="text-xs font-medium text-[#22C55E]">Sanjeevni AI</span>
           </div>
           <div className="w-9" />
         </div>
@@ -321,7 +384,7 @@ export default function ChatPage() {
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#22C55E] to-emerald-600 flex items-center justify-center mb-6 shadow-2xl shadow-[#22C55E]/20">
                 <Bot className="h-8 w-8 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-[#F9FAFB] mb-2">Medico</h1>
+              <h1 className="text-2xl font-bold text-[#F9FAFB] mb-2">Sanjeevni AI</h1>
               <p className="text-sm text-[#94A3B8] text-center mb-8 max-w-md">
                 Your AI health assistant. Ask me anything about your health, medications, lab results, or symptoms.
               </p>
@@ -416,7 +479,7 @@ export default function ChatPage() {
               </button>
             </div>
             <p className="text-[10px] text-[#94A3B8]/50 text-center mt-2">
-              Medico uses AI. Verify critical medical information with your doctor.
+              Sanjeevni AI uses AI. Verify critical medical information with your doctor.
             </p>
           </div>
         </div>

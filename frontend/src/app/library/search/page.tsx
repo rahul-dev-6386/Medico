@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { apiFetch, cn } from "@/lib/utils"
 import ReactMarkdown from "react-markdown"
@@ -42,6 +42,20 @@ const RELATED_TOPICS = [
 ]
 
 export default function LibrarySearchPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="h-5 w-5 text-[#22C55E] animate-spin" />
+        </div>
+      }
+    >
+      <LibrarySearchPageInner />
+    </Suspense>
+  )
+}
+
+function LibrarySearchPageInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const initialQuery = searchParams.get("q") || ""

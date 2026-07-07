@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     CACHE_DIR: str = "./data/cache"
     SARVAM_API_KEY: Optional[str] = None
 
+    # CORS
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001"
+
     # Email / SMTP
     EMAIL_USER: Optional[str] = None
     EMAIL_APP_PASSWORD: Optional[str] = None

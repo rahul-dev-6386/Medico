@@ -19,24 +19,25 @@ from app.core.config import settings
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 
-def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str, request: Request) -> None:
+    is_https = request.url.scheme == "https"
     response.set_cookie(
         key="access_token",
         value=access_token,
         max_age=settings.JWT_EXPIRATION_MINUTES * 60,
-        httponly=False,
+        httponly=True,
         samesite="lax",
         path="/",
-        secure=False,
+        secure=is_https,
     )
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         max_age=settings.JWT_REFRESH_EXPIRATION_DAYS * 86400,
-        httponly=False,
+        httponly=True,
         samesite="lax",
         path="/",
-        secure=False,
+        secure=is_https,
     )
 
 
@@ -46,26 +47,26 @@ def clear_auth_cookies(response: Response) -> None:
 
 
 @router.post("/register", response_model=TokenResponse, dependencies=[rate_limit(3, 60)])
-def register(data: UserCreate, response: Response, db: Session = Depends(get_db)):
+def register(data: UserCreate, response: Response, request: Request, db: Session = Depends(get_db)):
     service = AuthService(db)
     result = service.register(data)
-    set_auth_cookies(response, result["access_token"], result["refresh_token"])
+    set_auth_cookies(response, result["access_token"], result["refresh_token"], request)
     return result
 
 
 @router.post("/login", response_model=TokenResponse, dependencies=[rate_limit(10, 60)])
-def login(data: UserLogin, response: Response, db: Session = Depends(get_db)):
+def login(data: UserLogin, response: Response, request: Request, db: Session = Depends(get_db)):
     service = AuthService(db)
     result = service.login(data.email, data.password)
-    set_auth_cookies(response, result["access_token"], result["refresh_token"])
+    set_auth_cookies(response, result["access_token"], result["refresh_token"], request)
     return result
 
 
 @router.post("/refresh", response_model=TokenResponse, dependencies=[rate_limit(5, 60)])
-def refresh(data: RefreshRequest, response: Response, db: Session = Depends(get_db)):
+def refresh(data: RefreshRequest, response: Response, request: Request, db: Session = Depends(get_db)):
     service = AuthService(db)
     result = service.refresh(data.refresh_token)
-    set_auth_cookies(response, result["access_token"], result["refresh_token"])
+    set_auth_cookies(response, result["access_token"], result["refresh_token"], request)
     return result
 
 
@@ -78,7 +79,7 @@ def logout(data: RefreshRequest, response: Response, db: Session = Depends(get_d
 
 
 @router.post("/google", response_model=TokenResponse)
-def google_auth(data: GoogleAuthRequest, response: Response, db: Session = Depends(get_db)):
+def google_auth(data: GoogleAuthRequest, response: Response, request: Request, db: Session = Depends(get_db)):
     resp = httpx.get(
         f"https://oauth2.googleapis.com/tokeninfo?id_token={data.token}"
     )
@@ -95,7 +96,7 @@ def google_auth(data: GoogleAuthRequest, response: Response, db: Session = Depen
         full_name=google_data.get("name", google_data["email"]),
         provider_id=google_data["sub"],
     )
-    set_auth_cookies(response, result["access_token"], result["refresh_token"])
+    set_auth_cookies(response, result["access_token"], result["refresh_token"], request)
     return result
 
 
@@ -245,10 +246,10 @@ def send_login_otp(data: SendLoginOTPRequest, db: Session = Depends(get_db)):
     response_model=TokenResponse,
     dependencies=[rate_limit(5, 60)],
 )
-def login_with_otp(data: LoginWithOTPRequest, response: Response, db: Session = Depends(get_db)):
+def login_with_otp(data: LoginWithOTPRequest, response: Response, request: Request, db: Session = Depends(get_db)):
     service = AuthService(db)
     result = service.login_with_otp(data.email, data.otp)
-    set_auth_cookies(response, result["access_token"], result["refresh_token"])
+    set_auth_cookies(response, result["access_token"], result["refresh_token"], request)
     return result
 
 

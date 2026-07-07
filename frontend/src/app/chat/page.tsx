@@ -1,61 +1,69 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useRef, useEffect, useCallback, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { apiFetch, cn, API_URL, getAuthHeaders } from "@/lib/utils"
 import { useVoiceRecorder } from "@/lib/use-voice-recorder"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { motion, AnimatePresence } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 import {
-  Bot, Send, Sparkles, MessageSquare, Plus, Trash2,
-  ChevronLeft, ChevronRight, Copy, RefreshCw,
-  ThumbsUp, ThumbsDown, Search, Clock, FileText,
-  Pill, Activity, BookOpen, Loader2, AlertCircle,
-  Mic, Paperclip, ArrowDown, Circle,
+  Bot, Send, MessageSquare, Plus, Trash2,
+  Copy, RefreshCw, Loader2, Mic, PanelLeftClose,
+  PanelLeft,
 } from "lucide-react"
 
 interface Message {
   role: "user" | "assistant"
   content: string
   id?: string
-  timestamp?: string
 }
 
 interface ChatSession {
   id: number
   title: string
   created_at: string
-  updated_at?: string
-  pinned?: boolean
 }
 
-const suggestedPrompts = [
+const suggestions = [
   "What do my latest lab results mean?",
-  "Summarize my health this week",
-  "Should I be worried about my blood pressure?",
   "Check my medication interactions",
-  "What lifestyle changes would help me sleep better?",
+  "Summarize my health this week",
   "Analyze my recent blood work",
+  "Should I be worried about my blood pressure?",
+  "What lifestyle changes would help me sleep better?",
 ]
 
 function TypingIndicator() {
   return (
-    <div className="chat-bubble-assistant">
-      <div className="flex items-center gap-3">
-        <div className="flex gap-1.5">
-          <div className="typing-dot" />
-          <div className="typing-dot" />
-          <div className="typing-dot" />
-        </div>
-        <span className="text-xs text-[#94A3B8]">Sanjeevni AI is thinking...</span>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex gap-3"
+    >
+      <div className="w-8 h-8 rounded-xl bg-[#0EA5A9]/10 flex items-center justify-center shrink-0">
+        <Bot className="h-4 w-4 text-[#0EA5A9]" />
       </div>
-    </div>
+      <div className="flex items-center gap-1.5 py-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-[#0EA5A9] animate-bounce [animation-delay:-0.3s]" />
+        <span className="w-1.5 h-1.5 rounded-full bg-[#0EA5A9] animate-bounce [animation-delay:-0.15s]" />
+        <span className="w-1.5 h-1.5 rounded-full bg-[#0EA5A9] animate-bounce" />
+      </div>
+    </motion.div>
   )
 }
 
-function ChatMessage({ message, onCopy, onRegenerate }: { message: Message; onCopy: () => void; onRegenerate?: () => void }) {
+function ChatMessage({
+  message,
+  onCopy,
+  onRegenerate,
+}: {
+  message: Message
+  onCopy: () => void
+  onRegenerate?: () => void
+}) {
   const [copied, setCopied] = useState(false)
+  const isUser = message.role === "user"
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content)
@@ -68,42 +76,59 @@ function ChatMessage({ message, onCopy, onRegenerate }: { message: Message; onCo
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={cn("flex gap-3", message.role === "user" ? "justify-end" : "justify-start")}
+      transition={{ duration: 0.2 }}
+      className={cn("group flex gap-3", isUser ? "justify-end" : "justify-start")}
     >
-      {message.role === "assistant" && (
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#22C55E] to-emerald-600 flex items-center justify-center shrink-0 mt-1 shadow-lg shadow-[#22C55E]/20">
-          <Bot className="h-4 w-4 text-white" />
+      {!isUser && (
+        <div className="w-8 h-8 rounded-xl bg-[#0EA5A9]/10 flex items-center justify-center shrink-0 mt-0.5">
+          <Bot className="h-4 w-4 text-[#0EA5A9]" />
         </div>
       )}
-      <div className={cn("group max-w-[80%]", message.role === "user" && "order-first")}>
+
+      <div className={cn("min-w-0", isUser ? "max-w-[70%] order-first" : "flex-1")}>
         <div
           className={cn(
-            "prose prose-invert prose-sm max-w-none",
-            message.role === "user"
-              ? "chat-bubble-user"
-              : "chat-bubble-assistant"
+            "rounded-2xl px-4 py-2.5 text-[14px] leading-[1.6]",
+            isUser
+              ? "bg-[#0EA5A9] text-white rounded-br-md"
+              : "text-[#D1D9E8]"
           )}
         >
-          {message.role === "assistant" && message.content ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {message.content}
-            </ReactMarkdown>
+          {!isUser && message.content ? (
+            <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-pre:bg-[#0D1117] prose-pre:border prose-pre:border-[#2B364A] prose-code:text-[#0EA5A9] prose-code:bg-[#0EA5A9]/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-[13px] prose-code:font-mono prose-headings:text-[#EDF2F7] prose-strong:text-[#EDF2F7] prose-a:text-[#0EA5A9] prose-li:text-[#D1D9E8]">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {message.content}
+              </ReactMarkdown>
+            </div>
           ) : (
             message.content
           )}
         </div>
-        {message.role === "assistant" && (
-          <div className="flex items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity px-1">
-            <button onClick={handleCopy} className="btn-icon !p-1" title="Copy">
-              {copied ? <Check className="h-3.5 w-3.5 text-[#22C55E]" /> : <Copy className="h-3.5 w-3.5" />}
+
+        {!isUser && (
+          <div className="flex items-center gap-0.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={handleCopy}
+              className="p-1 rounded-md text-[#8B9BB5] hover:text-[#EDF2F7] hover:bg-[#181E2E] transition-colors"
+              title="Copy"
+            >
+              {copied ? (
+                <svg className="h-3.5 w-3.5 text-[#0EA5A9]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
             </button>
             {onRegenerate && (
-              <button onClick={onRegenerate} className="btn-icon !p-1" title="Regenerate">
+              <button
+                onClick={onRegenerate}
+                className="p-1 rounded-md text-[#8B9BB5] hover:text-[#EDF2F7] hover:bg-[#181E2E] transition-colors"
+                title="Regenerate"
+              >
                 <RefreshCw className="h-3.5 w-3.5" />
               </button>
             )}
-            <button className="btn-icon !p-1" title="Like"><ThumbsUp className="h-3.5 w-3.5" /></button>
-            <button className="btn-icon !p-1" title="Dislike"><ThumbsDown className="h-3.5 w-3.5" /></button>
           </div>
         )}
       </div>
@@ -111,18 +136,28 @@ function ChatMessage({ message, onCopy, onRegenerate }: { message: Message; onCo
   )
 }
 
-function Check(props: any) { return <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg> }
-
 export default function ChatPage() {
-  const router = useRouter()
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="h-5 w-5 text-[#0EA5A9] animate-spin" />
+        </div>
+      }
+    >
+      <ChatPageInner />
+    </Suspense>
+  )
+}
+
+function ChatPageInner() {
   const searchParams = useSearchParams()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSession, setActiveSession] = useState<number | null>(null)
-  const [showSidebar, setShowSidebar] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
+  const [showHistory, setShowHistory] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { recording, processing, startRecording, stopRecording } = useVoiceRecorder()
@@ -148,6 +183,10 @@ export default function ChatPage() {
     apiFetch("/chat/sessions").then(setSessions).catch(() => {})
   }, [])
 
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [activeSession])
+
   const handleSend = async (text?: string) => {
     const message = (text || input).trim()
     if (!message || loading) return
@@ -168,11 +207,10 @@ export default function ChatPage() {
         setActiveSession(sessionId)
         setSessions((prev) => [session, ...prev])
       } catch {
-        setMessages((prev) => [...prev, {
-          role: "assistant",
-          content: "I'm having trouble connecting. Please try again.",
-          id: `error-${Date.now()}`,
-        }])
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "Connection error. Please try again.", id: `err-${Date.now()}` },
+        ])
         setLoading(false)
         return
       }
@@ -184,10 +222,7 @@ export default function ChatPage() {
     try {
       const response = await fetch(`${API_URL}/chat/sessions/${sessionId}/messages/stream`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ content: message }),
       })
 
@@ -214,9 +249,7 @@ export default function ChatPage() {
             if (data.type === "token") {
               setMessages((prev) =>
                 prev.map((msg) =>
-                  msg.id === assistantId
-                    ? { ...msg, content: msg.content + data.content }
-                    : msg
+                  msg.id === assistantId ? { ...msg, content: msg.content + data.content } : msg
                 )
               )
             } else if (data.type === "error") {
@@ -227,7 +260,7 @@ export default function ChatPage() {
               )
             }
           } catch {
-            // skip malformed JSON
+            /* skip malformed */
           }
         }
       }
@@ -235,7 +268,7 @@ export default function ChatPage() {
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantId && !msg.content
-            ? { ...msg, content: "I'm having trouble connecting. Please try again." }
+            ? { ...msg, content: "Connection error. Please try again." }
             : msg
         )
       )
@@ -272,6 +305,7 @@ export default function ChatPage() {
       setSessions((prev) => [session, ...prev])
       setActiveSession(session.id)
       setMessages([])
+      inputRef.current?.focus()
     } catch {}
   }
 
@@ -296,64 +330,58 @@ export default function ChatPage() {
     }
   }
 
-  const filteredSessions = sessions.filter(
-    (s) => s.title.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const isEmpty = messages.length === 0
 
   return (
-    <div className="flex h-[calc(100vh-4rem)]">
-      {/* Chat Sidebar */}
-      <AnimatePresence>
-        {showSidebar && (
+    <div className="flex h-full overflow-hidden">
+      {/* ── Chat History Panel ── */}
+      <AnimatePresence initial={false}>
+        {showHistory && (
           <motion.aside
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 280, opacity: 1 }}
+            animate={{ width: 240, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
-            className="border-r border-white/[0.06] bg-[#0B0E14]/50 flex flex-col shrink-0 overflow-hidden"
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="relative z-10 border-r border-[#2B364A] bg-[#0B0F1A] flex flex-col shrink-0 overflow-hidden"
           >
-            <div className="p-3 border-b border-white/[0.06]">
-              <button onClick={createSession} className="btn-primary w-full gap-2">
+            <div className="flex items-center justify-between px-4 h-12 shrink-0">
+              <span className="text-xs font-medium text-[#8B9BB5] uppercase tracking-wider">Chats</span>
+              <button
+                onClick={createSession}
+                className="p-1 rounded-md text-[#8B9BB5] hover:text-[#EDF2F7] hover:bg-[#181E2E] transition-colors"
+                title="New chat"
+              >
                 <Plus className="h-4 w-4" />
-                New Chat
               </button>
             </div>
-            <div className="p-3">
-              <div className="relative">
-                <Search className="h-4 w-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search chats..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="input-field pl-9"
-                />
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
-              {filteredSessions.length === 0 ? (
-                <div className="text-center py-8 text-xs text-[#94A3B8] px-4">
-                  <MessageSquare className="h-6 w-6 mx-auto mb-2 opacity-40" />
-                  {searchQuery ? "No chats found" : "Start a new conversation"}
+
+            <div className="flex-1 overflow-y-auto px-2 pb-2">
+              {sessions.length === 0 ? (
+                <div className="text-center py-12 text-xs text-[#8B9BB5]/60 px-4">
+                  No conversations yet
                 </div>
               ) : (
-                filteredSessions.map((session) => (
+                sessions.map((session) => (
                   <button
                     key={session.id}
                     onClick={() => loadSession(session.id)}
                     className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all group",
+                      "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-colors group mb-0.5",
                       activeSession === session.id
-                        ? "bg-[#22C55E]/10 text-[#22C55E]"
-                        : "text-[#94A3B8] hover:text-[#F9FAFB] hover:bg-white/[0.04]"
+                        ? "bg-[#0EA5A9]/10 text-[#0EA5A9]"
+                        : "text-[#8B9BB5] hover:text-[#D1D9E8] hover:bg-[#181E2E]"
                     )}
                   >
-                    <MessageSquare className="h-4 w-4 shrink-0" />
-                    <span className="text-sm truncate flex-1">{session.title}</span>
+                    <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                    <span className="text-[13px] truncate flex-1">{session.title}</span>
                     <button
-                      onClick={(e) => { e.stopPropagation(); deleteSession(session.id) }}
-                      className="opacity-0 group-hover:opacity-100 btn-icon !p-1 shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteSession(session.id)
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-[#8B9BB5] hover:text-red-400 transition-all shrink-0"
                     >
-                      <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                      <Trash2 className="h-3 w-3" />
                     </button>
                   </button>
                 ))
@@ -363,48 +391,69 @@ export default function ChatPage() {
         )}
       </AnimatePresence>
 
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#090B10]">
-        {/* Mobile header */}
-        <div className="flex items-center justify-between px-4 h-14 border-b border-white/[0.06] lg:hidden">
-          <button onClick={() => setShowSidebar(!showSidebar)} className="btn-icon">
-            <MessageSquare className="h-5 w-5" />
+      {/* ── Chat Area ── */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Bar — minimal, only session controls */}
+        <div className="flex items-center h-12 px-4 border-b border-[#2B364A] shrink-0">
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="p-1.5 rounded-md text-[#8B9BB5] hover:text-[#EDF2F7] hover:bg-[#181E2E] transition-colors mr-2"
+            title={showHistory ? "Hide history" : "Show history"}
+          >
+            {showHistory ? (
+              <PanelLeftClose className="h-4 w-4" />
+            ) : (
+              <PanelLeft className="h-4 w-4" />
+            )}
           </button>
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#22C55E]/10 border border-[#22C55E]/20">
-            <Sparkles className="h-3 w-3 text-[#22C55E]" />
-            <span className="text-xs font-medium text-[#22C55E]">Sanjeevni AI</span>
-          </div>
-          <div className="w-9" />
+          {activeSession && (
+            <span className="text-[13px] text-[#8B9BB5] truncate">
+              {sessions.find((s) => s.id === activeSession)?.title || "Chat"}
+            </span>
+          )}
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full max-w-2xl mx-auto px-4">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#22C55E] to-emerald-600 flex items-center justify-center mb-6 shadow-2xl shadow-[#22C55E]/20">
-                <Bot className="h-8 w-8 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold text-[#F9FAFB] mb-2">Sanjeevni AI</h1>
-              <p className="text-sm text-[#94A3B8] text-center mb-8 max-w-md">
-                Your AI health assistant. Ask me anything about your health, medications, lab results, or symptoms.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
-                {suggestedPrompts.map((prompt, i) => (
-                  <motion.button
-                    key={i}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.06 }}
-                    onClick={() => handleSend(prompt)}
-                    className="text-left text-sm px-4 py-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/[0.1] transition-all text-[#94A3B8] hover:text-[#F9FAFB]"
-                  >
-                    {prompt}
-                  </motion.button>
-                ))}
+        {/* Messages or Welcome */}
+        <div className="flex-1 overflow-y-auto">
+          {isEmpty ? (
+            /* ── Welcome — minimal, composer-focused ── */
+            <div className="flex flex-col items-center justify-center h-full px-6 md:px-10 lg:px-12">
+              <div className="w-full">
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className="text-center mb-8"
+                >
+                  <h1 className="text-[22px] font-semibold text-[#EDF2F7] mb-1.5">
+                    Sanjeevni AI
+                  </h1>
+                  <p className="text-[13px] text-[#8B9BB5]">
+                    Ask anything about your health, medications, or lab results.
+                  </p>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15, duration: 0.3 }}
+                  className="flex flex-wrap justify-center gap-2 mb-10"
+                >
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSend(s)}
+                      className="px-3.5 py-2 rounded-xl bg-[#181E2E] border border-[#2B364A] text-[13px] text-[#8B9BB5] hover:text-[#D1D9E8] hover:border-[#3B4A63] hover:bg-[#1C2336] transition-colors"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </motion.div>
               </div>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+            /* ── Messages ── */
+            <div className="px-6 md:px-10 lg:px-12 py-6 space-y-4">
               {messages.map((msg, i) => (
                 <ChatMessage
                   key={msg.id || i}
@@ -419,80 +468,62 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Input Area */}
-        <div className="border-t border-white/[0.06] bg-[#090B10]">
-          <div className="max-w-3xl mx-auto px-4 py-3">
-            {messages.length > 0 && (
-              <div className="flex justify-center mb-2">
-                <button onClick={scrollToBottom} className="btn-icon !p-1.5">
-                  <ArrowDown className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-            <div className="flex items-end gap-2 bg-[#111827] rounded-2xl border border-white/[0.08] px-3 py-2 focus-within:border-[#22C55E]/40 focus-within:ring-1 focus-within:ring-[#22C55E]/20 transition-all">
-              <button className="btn-icon !p-1.5 shrink-0" title="Attach file">
-                <Paperclip className="h-4 w-4" />
-              </button>
+        {/* ── Composer — the strongest visual element ── */}
+        <div className="border-t border-[#2B364A] bg-[#0B0F1A]">
+          <div className="px-6 md:px-10 lg:px-12 py-4">
+            <div className="relative flex items-end bg-[#181E2E] rounded-2xl border border-[#2B364A] focus-within:border-[#0EA5A9]/50 focus-within:shadow-[0_0_0_3px_rgba(14,165,169,0.08)] transition-all">
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask me anything about your health..."
+                placeholder="Ask anything..."
                 rows={1}
-                className="flex-1 bg-transparent text-sm text-[#F9FAFB] outline-none resize-none max-h-32 py-1.5 placeholder:text-[#94A3B8]/60"
-                style={{ minHeight: "24px" }}
+                className="flex-1 bg-transparent text-[14px] text-[#EDF2F7] outline-none resize-none max-h-32 py-3.5 px-4 placeholder:text-[#8B9BB5]/50 leading-[1.5]"
+                style={{ minHeight: "48px" }}
                 onInput={(e) => {
                   const el = e.currentTarget
                   el.style.height = "auto"
                   el.style.height = Math.min(el.scrollHeight, 128) + "px"
                 }}
               />
-              <button
-                onClick={handleVoiceToggle}
-                disabled={processing}
-                className={cn(
-                  "btn-icon !p-1.5 shrink-0 relative transition-all",
-                  recording && "text-red-400 bg-red-500/10 animate-pulse-soft"
-                )}
-                title={recording ? "Stop recording" : "Voice input"}
-              >
-                {processing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Mic className={cn("h-4 w-4", recording && "text-red-400")} />
-                )}
-                {recording && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                )}
-              </button>
-              <button
-                onClick={() => handleSend()}
-                disabled={!input.trim() || loading}
-                className="w-9 h-9 rounded-xl bg-[#22C55E] text-white flex items-center justify-center shrink-0 hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:pointer-events-none"
-              >
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </button>
+              <div className="flex items-center gap-1 pr-2 pb-2.5">
+                <button
+                  onClick={handleVoiceToggle}
+                  disabled={processing}
+                  className={cn(
+                    "p-2 rounded-lg transition-colors",
+                    recording
+                      ? "text-red-400 bg-red-500/10"
+                      : "text-[#8B9BB5] hover:text-[#D1D9E8] hover:bg-[#252F40]"
+                  )}
+                  title={recording ? "Stop recording" : "Voice input"}
+                >
+                  {processing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mic className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  onClick={() => handleSend()}
+                  disabled={!input.trim() || loading}
+                  className="p-2 rounded-lg bg-[#0EA5A9] text-white hover:bg-[#0D9498] transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
-            <p className="text-[10px] text-[#94A3B8]/50 text-center mt-2">
-              Sanjeevni AI uses AI. Verify critical medical information with your doctor.
+            <p className="text-[11px] text-[#8B9BB5]/40 text-center mt-2.5">
+              AI-generated. Verify critical medical information with your doctor.
             </p>
           </div>
         </div>
       </div>
-
-      {/* Toggle sidebar button */}
-      <button
-        onClick={() => setShowSidebar(!showSidebar)}
-        className="hidden lg:flex absolute left-[var(--sidebar-width)] top-20 -translate-x-1/2 w-6 h-6 rounded-full bg-[#111827] border border-white/[0.06] items-center justify-center hover:bg-white/[0.06] transition-colors z-10"
-        style={{ left: showSidebar ? "calc(260px + var(--sidebar-width, 0px))" : "0px" }}
-      >
-        <ChevronLeft className={cn("h-3 w-3 text-[#94A3B8]", !showSidebar && "rotate-180")} />
-      </button>
     </div>
   )
 }

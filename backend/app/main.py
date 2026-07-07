@@ -14,6 +14,7 @@ typing.ForwardRef._evaluate = _evaluate_patch
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import settings
 
 from app.api.v1.endpoints import (
     auth,
@@ -50,7 +51,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=[origin.strip() for origin in settings.CORS_ORIGINS.split(",")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -151,10 +152,10 @@ def startup():
         print(f"Warning: could not start OTP cleanup scheduler: {e}")
         print("The app will start but database operations will fail until the DB is available.")
 
-    from app.infrastructure.vector_store import vector_store
-    try:
-        vector_store.initialize()
-        print(f"Vector store initialized: {vector_store.get_status()}")
+from app.infrastructure.vector_store import vector_store
+try:
+    vector_store.initialize()
+    print(f"Vector store initialized: {vector_store.get_status()}")
     except Exception as e:
         print(f"Warning: Could not initialize vector store: {e}")
 

@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
   async rewrites() {
     const backendUrl = process.env.NEXT_PUBLIC_API_URL
       ? new URL(process.env.NEXT_PUBLIC_API_URL).origin

@@ -156,32 +156,32 @@ from app.infrastructure.vector_store import vector_store
 try:
     vector_store.initialize()
     print(f"Vector store initialized: {vector_store.get_status()}")
-    except Exception as e:
-        print(f"Warning: Could not initialize vector store: {e}")
+except Exception as e:
+    print(f"Warning: Could not initialize vector store: {e}")
 
-    from app.domain.medical_library import indexer as lib_indexer
-    try:
-        lib_client = lib_indexer.get_client()
-        lib_indexer.init_collections(lib_client)
-        stats = lib_indexer.get_stats(lib_client)
-        print(f"Medical Library initialized: {stats}")
-    except Exception as e:
-        print(f"Warning: Could not initialize Medical Library: {e}")
+from app.domain.medical_library import indexer as lib_indexer
+try:
+    lib_client = lib_indexer.get_client()
+    lib_indexer.init_collections(lib_client)
+    stats = lib_indexer.get_stats(lib_client)
+    print(f"Medical Library initialized: {stats}")
+except Exception as e:
+    print(f"Warning: Could not initialize Medical Library: {e}")
 
-    # Pre-warm medical library models on startup
-    try:
-        from app.domain.medical_library.embedder import get_model
-        get_model()
-        print("Embedding model pre-warmed")
-    except Exception as e:
-        print(f"Warning: Could not pre-warm embedding model: {e}")
+# Pre-warm medical library models on startup
+try:
+    from app.domain.medical_library.embedder import get_model
+    get_model()
+    print("Embedding model pre-warmed")
+except Exception as e:
+    print(f"Warning: Could not pre-warm embedding model: {e}")
 
-    try:
-        from app.domain.medical_library.reranker import _get_direct_reranker
-        _get_direct_reranker()
-        print("Reranker model pre-warmed")
-    except Exception as e:
-        print(f"Warning: Could not pre-warm reranker model: {e}")
+try:
+    from app.domain.medical_library.reranker import _get_direct_reranker
+    _get_direct_reranker()
+    print("Reranker model pre-warmed")
+except Exception as e:
+    print(f"Warning: Could not pre-warm reranker model: {e}")
 
 
 @app.get("/api/health")

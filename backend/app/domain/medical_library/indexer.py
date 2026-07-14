@@ -1,19 +1,18 @@
 import os
-import json
 import logging
 from typing import Optional
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qm
 
+from app.core.config import settings
+
 logger = logging.getLogger("medical_library")
 
 QDRANT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "data", "library_qdrant")
 
-from app.domain.medical_library.embedder import get_embedding_dim
-
 COLLECTIONS = ["diseases", "laboratory", "pharmacology", "clinical_practice"]
-EMBEDDING_DIM = get_embedding_dim()
+EMBEDDING_DIM = settings.EMBEDDING_DIMENSION
 
 _client_instance: Optional[QdrantClient] = None
 
@@ -56,23 +55,13 @@ def init_collections(client: Optional[QdrantClient] = None):
                     ef_construct=200,
                 ),
             )
-            logger.info(f"Created collection: {name}")
+            logger.info(f"Created collection: {name} (dim={EMBEDDING_DIM})")
         else:
             info = client.get_collection(collection_name=name)
             logger.info(f"Collection exists: {name} ({info.points_count} points)")
 
 
 def upload_batch(client: QdrantClient, collection: str, chunks: list[dict], vectors: list[list[float]], global_start_index: int = 0):
-    """
-    Upload a batch of chunks to Qdrant.
-
-    Args:
-        client: QdrantClient instance
-        collection: target collection name
-        chunks: list of chunk dicts with metadata
-        vectors: list of embedding vectors (same length as chunks)
-        global_start_index: absolute index of first chunk in this batch (0-based across entire book)
-    """
     if len(chunks) != len(vectors):
         raise ValueError(f"Chunks/vectors mismatch: {len(chunks)} chunks vs {len(vectors)} vectors")
 
@@ -89,7 +78,6 @@ def upload_batch(client: QdrantClient, collection: str, chunks: list[dict], vect
             "medical_topic": "",
             "text": chunk.get("text", "")[:5000],
         }
-        # Use a globally unique deterministic ID
         point_id = hash(f"lib:{collection}:{book_name}:{global_i}") % (2**63 - 1)
         points.append(qm.PointStruct(
             id=point_id,

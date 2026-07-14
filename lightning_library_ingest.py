@@ -1,6 +1,8 @@
 """
 Standalone Medical Library Ingestion Script
 Run on Lightning AI GPU: python lightning_library_ingest.py
+
+Uses OpenRouter text-embedding-3-small (1536d) — same model as all other data sources.
 """
 import json
 import logging
@@ -11,12 +13,11 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
+import httpx
 import tiktoken
-import torch
 import fitz
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qm
-from sentence_transformers import SentenceTransformer, CrossEncoder
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,9 +29,9 @@ logger = logging.getLogger("library_ingest")
 BOOKS_DIR = os.path.join(os.path.dirname(__file__), "books")
 QDRANT_PATH = os.path.join(os.path.dirname(__file__), "backend", "data", "library_qdrant")
 
-EMBEDDING_MODEL = "BAAI/bge-large-en-v1.5"
-EMBEDDING_DIM = 1024
-RERANKER_MODEL = "BAAI/bge-reranker-large"
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+EMBEDDING_MODEL = "text-embedding-3-small"
+EMBEDDING_DIM = 1536
 CHUNK_SIZE = 750
 CHUNK_OVERLAP = 125
 BATCH_SIZE = 128
@@ -82,8 +83,6 @@ PROTECTED_BLOCKS = [
 ]
 
 tokenizer = tiktoken.get_encoding("cl100k_base")
-device = "cuda" if torch.cuda.is_available() else "cpu"
-logger.info(f"Device: {device}")
 
 
 # ===== PDF EXTRACTION =====
@@ -98,7 +97,6 @@ def extract_chapters(pdf_path: str) -> list[dict]:
     results = []
     current_chapter = "Front Matter"
     current_section = "Introduction"
-    references_found = False
 
     for page_num in range(len(doc)):
         page = doc[page_num]
@@ -183,7 +181,6 @@ def chunk_section(section: dict) -> list[dict]:
         para_stripped = para.strip()
         if not para_stripped:
             continue
-        is_heading = len(para_stripped) < 120 and not para_stripped.rstrip().endswith(".")
         t_para = len(tokenizer.encode(para_stripped))
         t_cur = len(tokenizer.encode(current_chunk)) if current_chunk else 0
 
@@ -192,7 +189,6 @@ def chunk_section(section: dict) -> list[dict]:
             prev_t = tokenizer.encode(current_chunk)
             overlap = prev_t[-min(CHUNK_OVERLAP, len(prev_t)):]
             current_chunk = (tokenizer.decode(overlap) + "\n\n") if overlap else ""
-            sep = ""
             current_chunk += (para_stripped + "\n")
         else:
             sep = "\n\n" if current_chunk else ""
@@ -258,7 +254,6 @@ def upload_batch(client: QdrantClient, collection: str, chunks: list[dict], vect
             "medical_topic": "",
             "text": chunk.get("text", "")[:5000],
         }
-        # Globally unique deterministic ID based on book + absolute chunk index
         pid = hash(f"lib:{collection}:{book_name}:{global_i}") % (2**63 - 1)
         points.append(qm.PointStruct(id=pid, vector=vec, payload=payload))
     response = client.upsert(collection_name=collection, points=points, wait=True)
@@ -267,29 +262,32 @@ def upload_batch(client: QdrantClient, collection: str, chunks: list[dict], vect
     logger.info(f"Uploaded {len(points)} points to {collection} (batch start={global_start_index})")
 
 
-# ===== EMBEDDING =====
-_model = None
-
-
-def get_model() -> SentenceTransformer:
-    global _model
-    if _model is None:
-        logger.info(f"Loading {EMBEDDING_MODEL}...")
-        _model = SentenceTransformer(EMBEDDING_MODEL, device=device)
-        _model.max_seq_length = 512
-        logger.info(f"Model loaded on {_model.device}")
-    return _model
-
-
+# ===== EMBEDDING via OpenRouter =====
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    model = get_model()
-    embs = model.encode(texts, batch_size=BATCH_SIZE, show_progress_bar=True, normalize_embeddings=True)
-    return [e.tolist() for e in embs]
+    if not OPENROUTER_API_KEY:
+        raise RuntimeError("OPENROUTER_API_KEY environment variable not set")
+
+    with httpx.Client(timeout=120) as client:
+        resp = client.post(
+            "https://openrouter.ai/api/v1/embeddings",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={"model": EMBEDDING_MODEL, "input": texts},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    if "data" not in data or not data["data"]:
+        raise RuntimeError(f"OpenRouter returned unexpected response: {data}")
+
+    items = sorted(data["data"], key=lambda x: x.get("index", 0))
+    return [item["embedding"] for item in items]
 
 
 # ===== PROCESS BOOK =====
 def process_book(book_name: str, pdf_rel_path: str, collection: str, client: QdrantClient) -> dict:
-    """Process a single book end-to-end. Returns dict with per-stage counts."""
     result = {
         "book_name": book_name,
         "sections": 0,
@@ -351,9 +349,11 @@ def main(collections: Optional[list[str]] = None):
     logger.info(f"Books dir: {BOOKS_DIR}")
     logger.info(f"Qdrant path: {QDRANT_PATH}")
     logger.info(f"Model: {EMBEDDING_MODEL} (dim={EMBEDDING_DIM})")
-    logger.info(f"Device: {device}")
 
-    # Delete old Qdrant data for clean state
+    if not OPENROUTER_API_KEY:
+        logger.error("OPENROUTER_API_KEY not set. Export it before running.")
+        sys.exit(1)
+
     if os.path.exists(QDRANT_PATH):
         import shutil
         shutil.rmtree(QDRANT_PATH)
@@ -373,7 +373,6 @@ def main(collections: Optional[list[str]] = None):
             targets.append((book_name, pdf_rel, coll))
 
     logger.info(f"Targets: {len(targets)} book entries")
-    logger.info("Processing books SEQUENTIALLY (max_workers=1) to avoid GPU race conditions")
 
     books_report = []
     with ThreadPoolExecutor(max_workers=1) as pool:
@@ -402,12 +401,6 @@ def main(collections: Optional[list[str]] = None):
     logger.info(f"{'-'*70}")
     logger.info(f"{'TOTAL':50s} {totals['sections']:5d} {totals['chunks_generated']:5d} {totals['embeddings_generated']:5d} {totals['vectors_uploaded']:5d}")
 
-    logger.info(f"\n{'='*60}")
-    logger.info(f"Total chunks generated: {totals['chunks_generated']}")
-    logger.info(f"Total embeddings generated: {totals['embeddings_generated']}")
-    logger.info(f"Total vectors uploaded: {totals['vectors_uploaded']}")
-
-    # Validate per-book
     logger.info(f"\n{'='*60}")
     logger.info("VALIDATION: vectors_uploaded vs vectors_stored")
     logger.info(f"{'='*60}")

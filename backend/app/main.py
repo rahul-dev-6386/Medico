@@ -154,14 +154,6 @@ try:
 except Exception as e:
     print(f"Warning: Could not initialize Medical Library: {e}")
 
-# Pre-warm medical library models on startup
-try:
-    from app.domain.medical_library.embedder import get_model
-    get_model()
-    print("Embedding model pre-warmed")
-except Exception as e:
-    print(f"Warning: Could not pre-warm embedding model: {e}")
-
 try:
     from app.domain.medical_library.reranker import _get_direct_reranker
     _get_direct_reranker()

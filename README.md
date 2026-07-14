@@ -23,8 +23,8 @@ User → Next.js Frontend → FastAPI Backend → PostgreSQL (structured data)
 | Database | PostgreSQL (Supabase) with pgvector |
 | Vector Stores | Qdrant (remote + on-disk), FAISS |
 | AI/LLM | Google Gemini API, OpenRouter |
-| Embeddings | Google Generative AI (`gemini-embedding-001`), SentenceTransformers (`BAAI/bge-large-en-v1.5`) |
-| Reranker | BAAI/bge-reranker-large (cross-encoder) |
+| Embeddings | OpenAI `text-embedding-3-small` via OpenRouter (1536d) |
+| Reranker | BAAI/bge-reranker-large (cross-encoder, optional) |
 | Auth | JWT dual-token, Google OAuth, email OTP, bcrypt |
 | Async Tasks | Redis Queue |
 | Voice | Sarvam AI (STT), Google Cloud TTS |

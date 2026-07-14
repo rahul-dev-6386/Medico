@@ -1,17 +1,3 @@
-import typing
-import functools
-
-# Monkey-patch ForwardRef._evaluate for Python 3.12+ compatibility.
-# Libraries (pydantic v1 compat, paddlepaddle, etc.) call the old 3.11
-# signature that lacks the ``recursive_guard`` keyword-only parameter.
-_evaluate_orig = typing.ForwardRef._evaluate
-@functools.wraps(_evaluate_orig)
-def _evaluate_patch(self, globalns, localns, type_params=None, recursive_guard=None):
-    if recursive_guard is None:
-        recursive_guard = set()
-    return _evaluate_orig(self, globalns, localns, type_params=type_params, recursive_guard=recursive_guard)
-typing.ForwardRef._evaluate = _evaluate_patch
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings

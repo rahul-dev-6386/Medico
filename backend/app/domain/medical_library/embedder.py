@@ -1,40 +1,68 @@
 import logging
 from typing import Optional
 
-import torch
-from sentence_transformers import SentenceTransformer
+from app.core.config import settings
 
 logger = logging.getLogger("medical_library")
 
-MODEL_NAME = "BAAI/bge-large-en-v1.5"
-EMBEDDING_DIM = 1024
-_model: Optional[SentenceTransformer] = None
-_device: Optional[str] = None
+GEMINI_MODEL = "models/gemini-embedding-001"
+GEMINI_DIM = 768
+
+LOCAL_MODEL_NAME = "BAAI/bge-large-en-v1.5"
+LOCAL_DIM = 1024
+
+_local_model = None
 
 
-def get_device() -> str:
-    global _device
-    if _device is None:
-        _device = "cuda" if torch.cuda.is_available() else "cpu"
-        logger.info(f"Embedding device: {_device}")
-    return _device
+def _get_provider() -> str:
+    return getattr(settings, "LIBRARY_EMBEDDING_PROVIDER", "gemini")
 
 
-def get_model() -> SentenceTransformer:
-    global _model
-    if _model is None:
-        logger.info(f"Loading embedding model: {MODEL_NAME}")
-        _model = SentenceTransformer(MODEL_NAME, device=get_device())
-        _model.max_seq_length = 512
-        logger.info(f"Embedding model loaded: {MODEL_NAME} on {_model.device}")
-    return _model
+def get_model():
+    """Return local SentenceTransformer model if using local provider, else None."""
+    if _get_provider() != "local":
+        return None
+    global _local_model
+    if _local_model is None:
+        from sentence_transformers import SentenceTransformer
+        logger.info(f"Loading local embedding model: {LOCAL_MODEL_NAME}")
+        _local_model = SentenceTransformer(LOCAL_MODEL_NAME)
+        _local_model.max_seq_length = 512
+        logger.info(f"Local embedding model loaded: {LOCAL_MODEL_NAME}")
+    return _local_model
+
+
+def get_embedding_dim() -> int:
+    if _get_provider() == "gemini":
+        return GEMINI_DIM
+    return LOCAL_DIM
 
 
 def embed_texts(texts: list[str], batch_size: int = 256) -> list[list[float]]:
+    provider = _get_provider()
+
+    if provider == "gemini":
+        import google.generativeai as genai
+        api_key = settings.GEMINI_API_KEY
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY not set")
+        genai.configure(api_key=api_key)
+
+        results = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            for text in batch:
+                result = genai.embed_content(model=GEMINI_MODEL, content=text)
+                results.append(result["embedding"])
+            logger.info(
+                f"  Embedded batch {i // batch_size + 1}: {len(batch)} texts "
+                f"({len(results)}/{len(texts)} total)"
+            )
+        return results
+
     model = get_model()
-    prefixed = [f"{t}" for t in texts]
     embeddings = model.encode(
-        prefixed,
+        texts,
         batch_size=batch_size,
         show_progress_bar=True,
         normalize_embeddings=True,
@@ -43,6 +71,17 @@ def embed_texts(texts: list[str], batch_size: int = 256) -> list[list[float]]:
 
 
 def embed_query(query: str) -> list[float]:
+    provider = _get_provider()
+
+    if provider == "gemini":
+        import google.generativeai as genai
+        api_key = settings.GEMINI_API_KEY
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY not set")
+        genai.configure(api_key=api_key)
+        result = genai.embed_content(model=GEMINI_MODEL, content=query)
+        return result["embedding"]
+
     model = get_model()
     emb = model.encode(query, normalize_embeddings=True, show_progress_bar=False)
     return emb.tolist()

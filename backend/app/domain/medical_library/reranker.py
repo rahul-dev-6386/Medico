@@ -1,31 +1,24 @@
 import logging
 from typing import Optional
 
-import torch
-from sentence_transformers import CrossEncoder
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-
 logger = logging.getLogger("medical_library")
 
 RERANKER_MODEL = "BAAI/bge-reranker-large"
-_reranker: Optional[CrossEncoder] = None
 _reranker_model = None
 _reranker_tokenizer = None
-
-
-def get_reranker() -> CrossEncoder:
-    global _reranker
-    if _reranker is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        logger.info(f"Loading reranker model: {RERANKER_MODEL} on {device}")
-        _reranker = CrossEncoder(RERANKER_MODEL, device=device)
-        logger.info("Reranker loaded")
-    return _reranker
+_reranker_available = True
 
 
 def _get_direct_reranker():
-    global _reranker_model, _reranker_tokenizer
-    if _reranker_model is None:
+    global _reranker_model, _reranker_tokenizer, _reranker_available
+    if _reranker_model is not None:
+        return _reranker_model, _reranker_tokenizer
+    if not _reranker_available:
+        return None, None
+    try:
+        import torch
+        from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
         device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Loading reranker model (direct): {RERANKER_MODEL} on {device}")
         _reranker_tokenizer = AutoTokenizer.from_pretrained(RERANKER_MODEL)
@@ -34,6 +27,11 @@ def _get_direct_reranker():
         ).to(device)
         _reranker_model.eval()
         logger.info("Reranker model (direct) loaded")
+    except Exception as e:
+        logger.warning(f"Reranker unavailable (torch/transformers not installed): {e}")
+        _reranker_available = False
+        _reranker_model = None
+        _reranker_tokenizer = None
     return _reranker_model, _reranker_tokenizer
 
 
@@ -42,6 +40,10 @@ def rerank(query: str, results: list[dict], top_k: int = 5) -> list[dict]:
         return []
 
     model, tokenizer = _get_direct_reranker()
+    if model is None:
+        return results[:top_k]
+
+    import torch
     pairs = [(query, r.get("text", "")) for r in results]
 
     encoded = tokenizer(

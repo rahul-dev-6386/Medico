@@ -10,8 +10,10 @@ logger = logging.getLogger("medical_library")
 
 QDRANT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "data", "library_qdrant")
 
+from app.domain.medical_library.embedder import get_embedding_dim
+
 COLLECTIONS = ["diseases", "laboratory", "pharmacology", "clinical_practice"]
-EMBEDDING_DIM = 1024
+EMBEDDING_DIM = get_embedding_dim()
 
 _client_instance: Optional[QdrantClient] = None
 

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     EMBEDDING_PROVIDER: str = "openrouter"
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     EMBEDDING_DIMENSION: int = 1536
+    LIBRARY_EMBEDDING_PROVIDER: str = "gemini"  # "gemini" or "local" (sentence-transformers)
 
     REDIS_URL: str = "redis://localhost:6379/0"
     CHUNK_SIZE: int = 500
